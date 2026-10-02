@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geropsych Resource Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f4ef;
+    --panel: #ffffff;
+    --accent: #2d6a4f;
+    --accent2: #52b788;
+    --text: #1a1a1a;
+    --muted: #7a7a72;
+    --border: #e0dbd2;
+    --shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); height: 100vh; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow); z-index: 1000; gap: 16px;
+  }
+  .header-left { display: flex; align-items: center; gap: 0px; }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 1.4rem; color: var(--accent); letter-spacing: -0.02em; }
+  .logo-short { display: none; }
+  .panel-toggle-wrap { display: flex; align-items: center; gap: 10px; }
+  .status { font-size: 0.75rem; color: var(--muted); white-space: nowrap; margin-left: 12px; }
+  .status.loading { color: var(--accent2); }
+  .status.error { color: #c0392b; }
+
+  /* .info-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 1.5px solid var(--muted); color: var(--muted);
+    font-size: 0.6rem; font-weight: 700; cursor: default;
+    position: relative; flex-shrink: 0; line-height: 1;
+    vertical-align: middle; margin-left: 5px;
+  }
+  .info-icon hr {
+    opacity: 0.2;
+  }
+  .info-icon .info-tooltip {
+    display: none;
+    position: absolute; left: 50%; top: calc(100% + 8px);
+    transform: translateX(-50%);
+    background: var(--text); color: #fff;
+    font-size: 0.75rem; font-weight: 400; line-height: 1.5;
+    padding: 9px 12px; border-radius: 8px;
+    width: 280px; white-space: normal; z-index: 9999;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    pointer-events: none;
+  }
+  .info-icon .info-tooltip::after {
+    content: ''; position: absolute; bottom: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent; border-bottom-color: var(--text);
+  }
+  .info-icon:hover .info-tooltip { display: block; } */
+
+  .controls { display: flex; gap: 10px; align-items: center; }
+  input[type="text"] {
+    border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 13px;
+    font-family: inherit; font-size: 0.85rem; background: var(--bg); color: var(--text);
+    width: 220px; outline: none; transition: border-color 0.2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent2); }
+  .btn-refresh {
+    background: var(--accent); color: white; border: none; border-radius: 8px;
+    padding: 7px 14px; font-family: inherit; font-size: 0.85rem; cursor: pointer;
+    font-weight: 500; transition: background 0.2s;
+  }
+  .btn-refresh:hover { background: var(--accent2); }
+
+  .progress-bar {
+    height: 3px; background: var(--border); position: relative; overflow: hidden;
+    transition: opacity 0.3s;
+  }
+  .progress-bar.hidden { opacity: 0; }
+  .progress-fill {
+    height: 100%; background: var(--accent2);
+    transition: width 0.3s ease; width: 0%;
+  }
+
+  #map { flex: 1; }
+
+  /* Leaflet popup custom styles */
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.13); padding: 0; overflow: hidden;
+  }
+  .leaflet-popup-content { margin: 0; min-width: 220px; max-width: 300px; }
+  .popup-inner { padding: 16px 18px; }
+  .popup-name { font-family: 'DM Serif Display', serif; font-size: 1.05rem; color: var(--accent); margin-bottom: 6px; }
+  .popup-loc { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+  .popup-desc { font-size: 0.82rem; line-height: 1.5; color: #444; margin-bottom: 10px; }
+  .popup-contact { font-size: 0.8rem; display: flex; flex-direction: column; gap: 3px; }
+  .popup-contact a { color: var(--accent); text-decoration: none; }
+  .popup-contact a:hover { text-decoration: underline; }
+  .popup-fallback-note { font-size: 0.72rem; color: var(--muted); font-style: italic; margin-top: 6px; }
+
+  .popup-cluster { padding: 14px 16px; }
+  .popup-cluster-title { font-family: 'DM Serif Display', serif; font-size: 1rem; color: var(--accent); margin-bottom: 10px; }
+  .popup-cluster-item { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+  .popup-cluster-item:last-child { border-bottom: none; }
+  .popup-cluster-item strong { display: block; color: var(--text); }
+
+  /* Marker styles */
+  .marker-precise { background: var(--accent); }
+  .marker-fallback { background: #b08a4e; }
+
+  .legend {
+    position: absolute; bottom: 28px; left: 14px; z-index: 900;
+    background: var(--panel); border-radius: 10px; padding: 10px 14px;
+    box-shadow: var(--shadow); font-size: 0.78rem; display: flex; flex-direction: column; gap: 6px;
+    border: 1px solid var(--border);
+  }
+  .legend-title { font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.68rem; }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .dot-precise { background: var(--accent); }
+  .dot-fallback { background: #b08a4e; }
+
+  .map-wrap { flex: 1; position: relative; display: flex; overflow: hidden; }
+  #map { flex: 1; }
+
+  .side-panel {
+    position: absolute; right: 0; top: 0; bottom: 0;
+    width: 280px; background: var(--panel);
+    border-left: 1px solid var(--border);
+    box-shadow: -4px 0 20px rgba(0,0,0,0.07);
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 800;
+  }
+  .side-panel.visible { transform: translateX(0); }
+
+  .side-panel-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .side-panel-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1rem; color: var(--accent);
+  }
+  .side-panel-count {
+    font-size: 0.72rem; color: var(--muted); margin-top: 2px;
+  }
+  .panel-toggle {
+    display: flex; gap: 0;
+    border: 1.5px solid var(--border); border-radius: 7px; overflow: hidden;
+    width: fit-content;
+  }
+  .panel-toggle button {
+    background: none; border: none; padding: 4px 10px;
+    font-family: inherit; font-size: 0.72rem; color: var(--muted);
+    cursor: pointer; transition: background 0.15s, color 0.15s;
+    border-right: 1px solid var(--border);
+  }
+  .panel-toggle button:last-child { border-right: none; }
+  .panel-toggle button.active {
+    background: var(--accent); color: white;
+  }
+  .side-panel-list {
+    overflow-y: auto; flex: 1; padding: 8px 0;
+  }
+  .side-panel-item {
+    padding: 10px 16px; cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .side-panel-item:last-child { border-bottom: none; }
+  .side-panel-item:hover { background: var(--bg); }
+  .side-panel-item-name {
+    font-size: 0.85rem; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .side-panel-item-loc {
+    font-size: 0.75rem; color: var(--muted); margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .resource-control-label { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+
+  /* .map-style-select {
+    border: 1.5px solid var(--border); border-radius: 8px; padding: 4px 8px;
+    font-family: inherit; font-size: 0.78rem; background: var(--bg); color: var(--muted);
+    outline: none; cursor: pointer;
+  }
+  .map-style-select:focus { border-color: var(--accent2); } */
+
+  .btn-info {
+    background: none; border: 1.5px solid var(--border); border-radius: 8px;
+    padding: 4px 11px; font-family: inherit; font-size: 0.78rem;
+    margin-left: 12px;
+    color: var(--muted); cursor: pointer; transition: border-color 0.2s, color 0.2s;
+    white-space: nowrap;
+  }
+  .btn-info:hover { border-color: var(--accent2); color: var(--accent); }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.38); z-index: 10000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel); border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    width: min(680px, 92vw); max-height: 82vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-header {
+    padding: 22px 28px 16px; border-bottom: 1px solid var(--border);
+    flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .modal-title {
+    font-family: 'DM Serif Display', serif; font-size: 1.45rem;
+    color: var(--accent); line-height: 1.2;
+  }
+  .modal-subtitle {
+    font-size: 0.82rem; color: var(--muted); margin-top: 4px; font-style: italic;
+  }
+  .close-button {
+    background: none; border: none; font-size: 1.3rem; cursor: pointer;
+    color: var(--muted); line-height: 1; padding: 2px 4px; flex-shrink: 0;
+    transition: color 0.15s;
+  }
+  .close-button:hover { color: var(--text); }
+  .side-panel-header .close-button {
+    position: absolute; right: 12px; top: 12px; padding: 4px 8px;
+  }
+  .modal-body {
+    overflow-y: auto; padding: 24px 28px 28px; flex: 1;
+    font-size: 0.88rem; line-height: 1.75; color: #333;
+  }
+  .modal-body p { margin-bottom: 1.1em; }
+  .modal-body h3 {
+    font-family: 'DM Serif Display', serif; font-size: 1.05rem;
+    color: var(--accent); margin: 1.6em 0 0.6em;
+  }
+  .modal-body .references { font-size: 0.8rem; color: var(--muted); line-height: 1.7; }
+  .modal-body .references p { margin-bottom: 0.6em; padding-left: 1.5em; text-indent: -1.5em; }
+  .modal-body .references a { color: var(--accent); }
+  .modal-tech-note {
+    margin-top: 2.4em; background: #f3f3f0; border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    font-family: 'Courier New', monospace; font-size: 0.76rem;
+    color: var(--muted); line-height: 1.65;
+  }
+  .modal-tech-note-label {
+    font-weight: 700; letter-spacing: 0.05em; color: #888;
+  }
+  #count-loaded {
+    margin-top: 1.4em; font-size: 0.8rem; color: var(--accent);
+    font-weight: 500; letter-spacing: 0.01em;
+  }
+
+  @media (max-width: 600px) {
+    .logo-full { display: none; }
+    .logo-short { display: inline; }
+    header { padding: 10px 14px; }
+    .panel-toggle-wrap { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .resource-control-label { font-size: 0.68rem; }
+    input[type="text"] { width: 75px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="logo"><span class="logo-full">Geropsych Resource Map</span><span class="logo-short">GRM</span></span>
+    <!-- <div class="info-icon">i<span class="info-tooltip">
+      <div id="count-loaded"></div><br />
+      <hr /><br /> When resources are
+      added to the spreadsheet, an App Script runs with a geocoder to find the resource location and add lat/lng values
+      based on its name, city, county, and state. Rows missing these details may appear in the wrong location on the map
+      or not at all.
+      The lat/lng values can be manually corrected on the spreadsheet (scroll all the way to the right to find them).
+      </span>
+      </div> -->
+    <button class="btn-info" onclick="document.getElementById('info-modal').classList.add('open')">About</button>
+    <span class="status" id="status">Loading…</span>
+  </div>
+  <div class="controls">
+    <div class="panel-toggle-wrap">
+      <span class="resource-control-label">Resources List</span>
+      <div class="panel-toggle">
+      <button id="pt-auto" class="active" onclick="setPanelMode('auto')">auto</button>
+      <button id="pt-visible" onclick="setPanelMode('visible')">show</button>
+      <button id="pt-hidden" onclick="setPanelMode('hidden')">hide</button>
+    </div>
+    </div>
+    <!-- <select class="map-style-select" id="map-style" onchange="setMapStyle(this.value)">
+      <option value="minimal">Minimal</option>
+      <option value="bw">B&amp;W</option>
+      <option value="dark">Dark</option>
+    </select> -->
+    <input type="text" id="search" placeholder="Search resources…">
+    <!-- <button class="btn-refresh" onclick="loadData()">↺ Refresh</button> -->
+  </div>
+</header>
+
+<div class="modal-overlay" id="info-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Geropsych Resource Map</div>
+        <div class="modal-subtitle">An interactive tool for exploring resources supporting older adults</div>
+      </div>
+      <button class="close-button"
+        onclick="document.getElementById('info-modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>This interactive map consolidates thousands of community resources gathered by
+        therapists-in-training into a searchable, geographically organized reference tool. It is designed for use by older
+        adults, their families and caregivers, and the
+        clinicians who support them. Resources span categories including elder care, housing support, mental
+        health services, grief counseling, legal aid, and dementia-specific programs.</p>
+
+      <p>James Hillman (1999) writes that character in later life is shaped not by adding to oneself but by revealing
+        what was
+        always there — a process requiring conditions of safety, continuity, and support. For clinicians working with
+        older clients, this means that the deep psychological work of aging cannot happen in isolation from the material
+        realities of a person's life. When a client is navigating housing instability, caregiver burnout, or lack of
+        transportation, the therapeutic hour cannot hold everything. As Sheenagh Burns (2008) observed from geropsychology
+        practice in long-term care settings, effective work with older adults requires the clinician to function as a
+        connector to systems of support, not merely an individual practitioner.</p>
+
+      <p>Research on aging consistently finds that social connectedness and access to services are among the strongest
+        predictors of wellbeing in later life (Cornwell &amp; Waite, 2009). Yet other research consistently identifies a
+        substantial unmet need for mental health services among older adults, with practical
+        barriers — including not knowing where to go — among the most commonly cited obstacles to care (Lavingia et al.,
+        2020). This tool was built to fill that need.</p>
+
+      <h3>References</h3>
+      <div class="references">
+        <p>Burns, S. U. (2008). Geropsychology practice: One psychologist's experience in long-term care.
+          <em>Psychological Services, 5</em>(1), 73–84. <a href="https://doi.org/10.1037/1541-1559.5.1.73"
+            target="_blank">https://doi.org/10.1037/1541-1559.5.1.73</a>
+        </p>
+        <p>Cornwell, E. Y., &amp; Waite, L. J. (2009). Social disconnectedness, perceived isolation, and health among
+          older adults. <em>Journal of Health and Social Behavior, 50</em>(1), 31–48. <a
+            href="https://doi.org/10.1177/002214650905000103"
+            target="_blank">https://doi.org/10.1177/002214650905000103</a></p>
+        <p>Hillman, J. (1999). <em>The force of character: And the lasting life.</em> Random House.</p>
+        <p>Lavingia, R., Jones, K., &amp; Asghar-Ali, A. A. (2020). A systematic review of barriers faced by older
+          adults in seeking and accessing mental health care. <em>Journal of Psychiatric Practice, 26</em>(5), 367–382.
+          <a href="https://doi.org/10.1097/PRA.0000000000000491"
+            target="_blank">https://doi.org/10.1097/PRA.0000000000000491</a>
+        </p>
+      </div>
+      <div class="modal-tech-note">
+        <span class="modal-tech-note-label">TECHNICAL NOTE:</span> Every night, a geocoder App Script runs to find the locations
+        of newly added resources. It determines lat/lng values based on
+        the resource's name, city, county, and state. Rows missing these details may appear in the wrong location on the map or
+        not at all. The lat/lng values can also be manually set (or corrected) on the spreadsheet directly; scroll all the way
+        to the right to find them.
+        <div id="count-loaded"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="progress-bar" id="progress-bar">
+  <div class="progress-fill" id="progress-fill"></div>
+</div>
+
+<div class="map-wrap">
+  <div id="map"></div>
+  <div class="side-panel" id="side-panel">
+    <div class="side-panel-header">
+      <button class="close-button" onclick="setPanelMode('hidden')">&times;</button>
+      <div class="side-panel-title">Resources in this area</div>
+      <div class="side-panel-count" id="side-panel-count"></div>
+    </div>
+    <div class="side-panel-list" id="side-panel-list"></div>
+  </div>
+</div>
+
+<!-- <div class="legend">
+  <div class="legend-title">Marker type</div>
+  <div class="legend-item"><div class="legend-dot dot-precise"></div> Geocoded location</div>
+  <div class="legend-item"><div class="legend-dot dot-fallback"></div> City/county fallback</div>
+</div> -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ── CONFIGURATION ──────────────────────────────────────────────────────────────
+
+const sheet_id = '1SbmY2A8dRRxS6HFoWJ63JI5Hrdsae5RyC81sZVBL0vI';
+// Paste your Google Apps Script Web App URL here after deploying:
+// const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWFYFzwZ6eyQ76vGxgeqdAVlxV4s30RxX9Dlmp4NvufeEDN2F8unxDlX1kr4I1IbXmmA/exec';
+// const APPS_SCRIPT_URL_TEST = 'https://script.google.com/macros/s/AKfycbwpo2JWleSpPlyn1pFJq2hcM8NeSPy7ya7fYsYsAzIaLvgh8tsDFQF9xVlURXonjhGTMA/exec';
+// ──────────────────────────────────────────────────────────────────────────────
+
+const carHash = "cb1_40w3_1_123c7e637ff349e9ee317c2b";
+let loadFromHash = false;
+
+function getHashView() {
+  const m = location.hash.match(/^#([\d.]+)\/([-\d.]+)\/([-\d.]+)$/);
+  loadFromHash = !!m;
+  return m ? { zoom: +m[1], lat: +m[2], lng: +m[3] } : null;
+}
+
+const initView = getHashView() || { zoom: 4, lat: 38.5, lng: -96 };
+const map = L.map('map', { zoomSnap: 0.5 }).setView([initView.lat, initView.lng], initView.zoom);
+
+map.on('moveend', () => {
+  const c = map.getCenter();
+  location.replace(`#${map.getZoom()}/${c.lat.toFixed(4)}/${c.lng.toFixed(4)}`);
+});
+
+const MAP_STYLES = {
+  minimal: { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',        filter: '' },
+  bw:      { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',        filter: 'grayscale(1)' },
+  dark:    { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',         filter: '' },
+};
+const CARTO_ATTR = '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>';
+
+let tileLayer = L.tileLayer(MAP_STYLES.minimal.url + `?key=${carHash}`, { attribution: CARTO_ATTR, maxZoom: 19 }).addTo(map);
+
+function setMapStyle(key) {
+  const style = MAP_STYLES[key] || MAP_STYLES.minimal;
+  tileLayer.setUrl(style.url);
+  document.querySelector('.leaflet-tile-pane').style.filter = style.filter;
+}
+
+let allMarkers = [];
+let markerLayer = L.layerGroup().addTo(map);
+let coordMap = {};
+let pinColorIndex = 0;
+
+const PIN_COLORS = [
+  '#e63946', // red
+  '#3a86ff', // bright blue
+  '#ff006e', // hot pink
+  '#fb5607', // vivid orange
+  '#8338ec', // purple
+  '#06d6a0', // mint
+  '#ffbe0b', // golden yellow
+  '#00b4d8', // sky blue
+  '#6a994e', // muted sage green
+  '#457b9d', // muted steel blue
+];
+
+function getLoc(row) {
+  const county = row.county ? (row.county.includes('County') ? row.county : row.county + ' County') : '';
+  const parts = [row.city, county, row.state].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : '';
+}
+
+function makeIcon(type, angle = 0, colorIndex = 0, isShifted = false) {
+  const headColor = PIN_COLORS[colorIndex % PIN_COLORS.length];
+  const shaftColor = isShifted ? '#78788a' : '#c0c0cc';
+  const tipColor   = isShifted ? '#606070' : '#a8a8b8';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="38" viewBox="0 0 12 38"
+    style="transform-origin: 6px 38px; transform: rotate(${angle}deg); display: block;">
+    <circle cx="6" cy="6" r="6" stroke="white" stroke-width="0.4" fill="${headColor}"/>
+    <rect x="5.25" y="11" width="1.5" height="23" fill="${shaftColor}"/>
+    <polygon points="5,34 7,34 6,38" fill="${tipColor}"/>
+    </svg>`;
+  return L.divIcon({
+    html: svg, className: '', iconSize: [12, 38], iconAnchor: [6, 38], popupAnchor: [0, -40]
+  });
+}
+
+
+let con = false; 
+// ── POPUP HTML ─────────────────────────────────────────────────────────────────
+function popupHTML(row, coords) {
+  const loc = getLoc(row);
+  return `<div class="popup-inner">
+    <div class="popup-name">${row.name || ''}</div>
+    ${loc ? `<div class="popup-loc">📍 ${loc}</div>` : ''}
+    ${row.description ? `<div class="popup-desc">${row.description}</div>` : ''}
+    <div class="popup-contact">
+      ${row.free ? `<span>💲 Is it free? <strong>${row.free}</strong></span>` : ''}
+      ${row.website ? `<span>🌐 <a href="${row.website}" target="_blank">${row.website}</a></span>` : ''}
+      ${row.phone ? `<span>📞 <a href="tel:${row.phone}">${row.phone}</a></span>` : ''}
+      ${row.email ? `<span>✉️ <a href="mailto:${row.email}">${row.email}</a></span>` : ''}
+      ${row.address ? `<span>🏠 ${row.address}</span>` : ''}
+      </div>
+      ${coords.type === 'fallback' ? `<div class="popup-fallback-note">⚠ Approximate location (city-level)</div>` : ''}
+      </div>`;
+  // ${coords.lat ? `<span>Plotted: ${coords.lat}, ${coords.lng}</span>` : ''}
+}
+
+// ── SEARCH FILTER ─────────────────────────────────────────────────────────────
+document.getElementById('search').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  allMarkers.forEach(({ marker, row }) => {
+    const text = Object.values(row).join(' ').toLowerCase();
+    if (text.includes(q)) {
+      if (!markerLayer.hasLayer(marker)) markerLayer.addLayer(marker);
+    } else {
+      markerLayer.removeLayer(marker);
+    }
+  });
+});
+
+// ── MAIN LOAD ──────────────────────────────────────────────────────────────────
+function setStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'status ' + (cls || '');
+}
+
+function setProgress(pct) {
+  const bar = document.getElementById('progress-bar');
+  const fill = document.getElementById('progress-fill');
+  if (pct >= 100) {
+    fill.style.width = '100%';
+    setTimeout(() => bar.classList.add('hidden'), 400);
+  } else {
+    bar.classList.remove('hidden');
+    fill.style.width = pct + '%';
+  }
+}
+
+async function fetchSheetRows() {
+  const url = `https://docs.google.com/spreadsheets/d/${sheet_id}/gviz/tq?tqx=out:json&gid=0`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/)[1]);
+  const cols = json.table.cols.map(c => c.label.toLowerCase().trim());
+  return json.table.rows.map((r, idx) => {
+    const obj = {};
+    cols.forEach((col, i) => { obj[col] = r.c[i] && r.c[i].v != null ? String(r.c[i].v).trim() : ''; });
+    obj._rowNum = idx + 1; // for debugging (approx, empty rows are skipped in the API response)
+    return obj;
+  }).filter(r => r.name);
+}
+
+// ── SHEET LOADING (via Apps Script proxy — solves CORS) ───────────────────────
+// async function fetchSheetRows() {
+//   if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL') {
+//     throw new Error('Please set APPS_SCRIPT_URL at the top of the script. See instructions.');
+//   }
+//   const res = await fetch(APPS_SCRIPT_URL);
+//   if (!res.ok) throw new Error('HTTP ' + res.status);
+//   const data = await res.json();
+//   return data.filter(r => r.name);
+// }
+
+// ── PLACEMENT GROUPS ───────────────────────────────────────────────────────────
+// Each group of 3 shares a lat/lng offset: [vertical, rotated-right, rotated-left]
+// Groups 0: original | 1: up-right | 2: down-left | 3: up-left | 4: down-right
+// After 5 groups (15 pins), cycle back to original with 2x angle, then 3x, etc.
+const BASE_ANGLE = 17.15;
+const COORD_OFFSETS = [
+  [ 0,       0      ],  // original
+  [ 0.0001,  0.0001 ],  // up-right
+  [-0.0001, -0.0001 ],  // down-left
+  [ 0.0001, -0.0001 ],  // up-left
+  [-0.0001,  0.0001 ],  // down-right
+];
+
+// ── PLACE MARKER ───────────────────────────────────────────────────────────────
+function placeMarker(row, coords) {
+  const key = `${coords.lat.toFixed(4)},${coords.lng.toFixed(4)}`;
+  const count = coordMap[key] || 0;
+  coordMap[key] = count + 1;
+
+  const posInGroup  = count % 3;                          // 0=vert, 1=right, 2=left
+  const groupIndex  = Math.floor(count / 3);
+  const cycle       = Math.floor(groupIndex / 5);         // angle multiplier round
+  const groupInCycle = groupIndex % 5;                    // which spatial offset
+
+  const [dlat, dlng] = COORD_OFFSETS[groupInCycle];
+  const isShifted = dlat !== 0 || dlng !== 0;
+  const angleMultiplier = cycle + 1;
+
+  const angle = posInGroup === 1 ?  BASE_ANGLE * angleMultiplier
+              : posInGroup === 2 ? -BASE_ANGLE * angleMultiplier
+              : 0;
+
+  const marker = L.marker(
+    [coords.lat + dlat, coords.lng + dlng],
+    { icon: makeIcon(coords.type, angle, pinColorIndex++, isShifted), zIndexOffset: -posInGroup * 100 }
+  );
+  // if (coords.type === 'precise') return;
+  marker.bindPopup(popupHTML(row, coords), { maxWidth: 320 });
+  let loc = [row.city, row.county ? row.county + ' County' : '', row.state].filter(Boolean).join(', ');
+  if (loc.length > 50) loc = loc.slice(0, 46) + '...'; // truncate long locations
+  let name = row.name || '';
+  if (name.length > 50) name = name.slice(0, 46) + '...';
+  const θ = angle * Math.PI / 180;
+  const tooltipOffset = [Math.round(32 * Math.sin(θ)), Math.round(-32 * Math.cos(θ)) - 10];
+  marker.bindTooltip(`<strong>${name}</strong>${loc ? `<br>${loc}` : ''}`, { direction: 'top', offset: tooltipOffset });
+  marker.on('click', () => {
+    console.log('Marker clicked:', row);
+    marker.closeTooltip();
+  });
+  markerLayer.addLayer(marker);
+  allMarkers.push({ marker, row });
+}
+
+// ── MAIN LOAD ──────────────────────────────────────────────────────────────────
+async function loadData() {
+  markerLayer.clearLayers();
+  allMarkers = [];
+  coordMap = {};
+  pinColorIndex = 0;
+  setProgress(2);
+  setStatus('Fetching sheet…', 'loading');
+
+  let rows;
+  try {
+    rows = await fetchSheetRows();
+    console.log('Fetched rows:', rows[0]);
+  } catch(e) {
+    setStatus(`Error: ${e.message}`, 'error');
+    setProgress(100);
+    return;
+  }
+
+  setProgress(60);
+  let placed = 0, missing = 0;
+
+  const fields = Object.keys(rows[0] || {});
+  const simpleFields = ['phone', 'website', 'free'];
+  const simpleFieldsMap = {};
+  simpleFields.forEach(f => {
+    const field = fields.find(k => k.toLowerCase().includes(f));
+    if (field) simpleFieldsMap[f] = field;
+  });
+  for (const row of rows) {
+    const lat = parseFloat(row.lat_c);
+    const lng = parseFloat(row.lng_c);
+    const geoType = (row.geo_type_c || '').trim();
+    simpleFields.forEach(f => {
+      if (simpleFieldsMap[f] && row[simpleFieldsMap[f]]) {
+        row[f] = row[simpleFieldsMap[f]];
+      }
+    });
+
+    if (!isNaN(lat) && !isNaN(lng) && geoType !== 'NOT_FOUND') {
+      const type = geoType === 'precise' ? 'precise' : 'fallback';
+      placeMarker(row, { lat, lng, type });
+      placed++;
+    } else {
+      missing++;
+    }
+  }
+
+  setProgress(100);
+  // const missingNote = missing > 0 ? ` (${missing} not yet geocoded)` : '';
+  setStatus('');
+  const el = document.getElementById('count-loaded');
+  console.log({el})
+  el.textContent = `${placed} of ${rows.length} resources mapped`;
+
+  if (allMarkers.length > 0) {
+    const group = L.featureGroup(allMarkers.map(m => m.marker));
+    if (!loadFromHash) map.fitBounds(group.getBounds().pad(0.1));
+  }
+}
+
+      // ── SIDE PANEL ─────────────────────────────────────────────────────────────────
+      let panelMode = 'auto';
+
+      function setPanelMode(mode) {
+        panelMode = mode;
+        ['auto', 'visible', 'hidden'].forEach(m => {
+          document.getElementById('pt-' + m).classList.toggle('active', m === mode);
+        });
+        updateSidePanel();
+      }
+
+      function updateSidePanel() {
+        const panel = document.getElementById('side-panel');
+        const list = document.getElementById('side-panel-list');
+        const count = document.getElementById('side-panel-count');
+
+        if (panelMode === 'hidden' || (panelMode === 'auto' && map.getZoom() < 7)) {
+          panel.classList.remove('visible');
+          return;
+        }
+
+        const bounds = map.getBounds();
+        const q = document.getElementById('search').value.toLowerCase();
+
+        const inView = allMarkers.filter(({ marker, row }) => {
+          if (!markerLayer.hasLayer(marker)) return false;
+          return bounds.contains(marker.getLatLng());
+        }).sort((a, b) => (a.row.name || '').localeCompare(b.row.name || ''));
+
+        count.textContent = `${inView.length} resource${inView.length !== 1 ? 's' : ''}`;
+        list.innerHTML = inView.map(({ marker, row }) => {
+          const loc = getLoc(row);
+          return `<div class="side-panel-item" data-lat="${marker.getLatLng().lat}" data-lng="${marker.getLatLng().lng}">
+      <div class="side-panel-item-name">${row.name || ''}</div>
+      ${loc ? `<div class="side-panel-item-loc">${loc}</div>` : ''}
+    </div>`;
+        }).join('');
+
+        list.querySelectorAll('.side-panel-item').forEach((el, i) => {
+          el.addEventListener('click', () => inView[i].marker.openPopup());
+        });
+
+        panel.classList.add('visible');
+      }
+
+      map.on('moveend', updateSidePanel);
+      document.getElementById('search').addEventListener('input', updateSidePanel);
+
+loadData();
+</script>
+</body>
+</html>
