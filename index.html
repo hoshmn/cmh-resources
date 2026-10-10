@@ -124,6 +124,15 @@
   .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
   .legend-item { cursor: pointer; user-select: none; transition: opacity 0.15s; }
   .legend-item.off { opacity: 0.4; text-decoration: line-through; }
+  .legend { max-width: 260px; }
+  .legend-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag-chip {
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    border-radius: 999px; padding: 2px 9px; font: inherit; font-size: 0.72rem;
+    cursor: pointer; user-select: none; transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tag-chip:hover { border-color: var(--accent2); }
+  .tag-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .popup-row { font-size: 0.8rem; line-height: 1.45; margin-bottom: 5px; word-break: break-word; }
   .popup-row-label { display: block; font-size: 0.66rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .popup-row a { color: var(--accent); text-decoration: none; }
@@ -360,6 +369,12 @@ const TYPE_COLORS = {
 const TYPE_LABELS = { 'mental health': 'Mental Health', 'community': 'Community', 'integrative health': 'Integrative Health' };
 const DEFAULT_PIN_COLOR = '#7a7a72';
 const activeTypes = new Set(Object.keys(TYPE_COLORS));
+const activeTags = new Set(); // empty = no tag filtering; otherwise a resource needs at least one selected tag
+
+function rowTags(row) { return (row.tags || '').split(/[,;]/).map(t => t.trim()).filter(Boolean); }
+function passesFilters(row) {
+  return activeTypes.has(typeKey(row)) && (!activeTags.size || rowTags(row).some(t => activeTags.has(t)));
+}
 
 function typeKey(row) { return (row.type || '').trim().toLowerCase(); }
 function esc(v) {
@@ -411,7 +426,7 @@ function popupHTML(row) {
 // ── FILTERS (legend type toggles) ───────────────────────────────
 function applyFilters() {
   allMarkers.forEach(({ marker, row }) => {
-    const show = activeTypes.has(typeKey(row));
+    const show = passesFilters(row);
     if (show) {
       if (!markerLayer.hasLayer(marker)) markerLayer.addLayer(marker);
     } else {
@@ -423,15 +438,27 @@ function applyFilters() {
 
 function buildLegend() {
   const legend = document.getElementById('legend');
+  const allTags = [...new Set([...allMarkers.map(m => m.row), ...unplotted].flatMap(rowTags))].sort((a, b) => a.localeCompare(b));
   legend.innerHTML = '<div class="legend-title">Type (click to filter)</div>' +
     Object.keys(TYPE_COLORS).map(k =>
-      `<div class="legend-item" data-type="${k}"><div class="legend-dot" style="background:${TYPE_COLORS[k]}"></div>${TYPE_LABELS[k]}</div>`
-    ).join('');
+      `<div class="legend-item${activeTypes.has(k) ? '' : ' off'}" data-type="${k}"><div class="legend-dot" style="background:${TYPE_COLORS[k]}"></div>${TYPE_LABELS[k]}</div>`
+    ).join('') +
+    (allTags.length ? '<div class="legend-title">Tags</div><div class="legend-chips">' +
+      allTags.map(t => `<button type="button" class="tag-chip${activeTags.has(t) ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('') +
+      '</div>' : '');
   legend.querySelectorAll('.legend-item').forEach(el => {
     el.addEventListener('click', () => {
       const k = el.dataset.type;
       if (activeTypes.has(k)) activeTypes.delete(k); else activeTypes.add(k);
       el.classList.toggle('off', !activeTypes.has(k));
+      applyFilters();
+    });
+  });
+  legend.querySelectorAll('.tag-chip').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = el.dataset.tag;
+      if (activeTags.has(t)) activeTags.delete(t); else activeTags.add(t);
+      el.classList.toggle('on', activeTags.has(t));
       applyFilters();
     });
   });
@@ -526,7 +553,7 @@ function placeMarker(row, coords) {
     console.log('Marker clicked:', row);
     marker.closeTooltip();
   });
-  if (activeTypes.has(typeKey(row))) markerLayer.addLayer(marker);
+  if (passesFilters(row)) markerLayer.addLayer(marker);
   allMarkers.push({ marker, row });
 }
 
@@ -546,6 +573,7 @@ async function loadData() {
       "contact": "Main: (831) 600-2801",
       "address": "2250 Soquel Ave., Suite 150, Santa Cruz, CA 95062",
       "summary": "A 16-bed locked acute inpatient unit for adults 18+ with serious mental illness, open 24/7. Admission runs through the attached Crisis Stabilization Program, which assesses first and refers into the PHF if more intensive care is needed. Does not admit minors; youth hospitalization is out of county (e.g., Fremont Hospital, Mills-Peninsula).",
+      "tags": "Crisis",
       "latitude": "36.98565",
       "lng": "-121.98402",
       "_rowNum": 1
@@ -558,6 +586,7 @@ async function loadData() {
       "contact": "(831) 424-5565; Care Coordinator via online intake form",
       "address": "2121 41st Ave., Ste. 211, Capitola, CA 95010",
       "summary": "In-home ABA for children with autism in Santa Cruz County, delivered by BCBAs and RBTs. Targets communication, independence, and daily living skills. Accepts most major insurance plans.",
+      "tags": "Youth",
       "latitude": "36.97486",
       "lng": "-121.95663",
       "_rowNum": 2
@@ -570,6 +599,7 @@ async function loadData() {
       "contact": "info@abrite.org",
       "address": "749 37th Ave., Santa Cruz, CA 95062",
       "summary": "Early intensive behavioral intervention for young learners, with an individualized curriculum built around each child's strengths and needs.",
+      "tags": "Youth",
       "latitude": "36.96328",
       "lng": "-121.96783",
       "_rowNum": 3
@@ -582,6 +612,7 @@ async function loadData() {
       "contact": "(831) 429-8350 ext. 0; youthservices@encompasscs.org",
       "address": "709 Mission St., Santa Cruz, CA 95060",
       "summary": "Counseling and substance use services for teens and their families through the county's largest nonprofit human services agency. A good first call for North County youth.",
+      "tags": "Youth, Substance Use",
       "latitude": "36.96864",
       "lng": "-122.03667",
       "_rowNum": 4
@@ -594,6 +625,7 @@ async function loadData() {
       "contact": "(831) 728-6445; admin@pvpsa.org",
       "address": "335 E. Lake Ave., Watsonville, CA 95076",
       "summary": "Prevention, education, and counseling services for students, families, and staff in the Pajaro Valley Unified School District.",
+      "tags": "Youth, Substance Use",
       "latitude": "36.91417",
       "lng": "-121.75133",
       "_rowNum": 5
@@ -606,6 +638,7 @@ async function loadData() {
       "contact": "(831) 462-1060; toll-free (866) 526-8772; info@janussc.org",
       "address": "200 7th Ave., Suite 150, Santa Cruz, CA 95062",
       "summary": "Full-service SUD treatment center founded in 1976 on a social-model approach, serving over 2,500 clients and families a year. Also runs a perinatal residential program at 516 Chestnut St. (831-423-9015).",
+      "tags": "Substance Use",
       "latitude": "36.964784",
       "lng": "-121.99645",
       "_rowNum": 6
@@ -618,6 +651,7 @@ async function loadData() {
       "contact": "(831) 465-4618; altosudreferrals@encompasscs.org",
       "address": "716 Ocean St., Santa Cruz, CA 95060",
       "summary": "Outpatient SUD treatment with a dedicated referral email, which makes clinician referrals simple.",
+      "tags": "Substance Use",
       "latitude": "36.98225",
       "lng": "-122.02324",
       "_rowNum": 7
@@ -630,6 +664,7 @@ async function loadData() {
       "contact": "Watsonville (831) 722-4532; Santa Cruz (831) 425-4030; TDD (800) 735-2929",
       "address": "233 E. Lake Ave., Watsonville, CA 95076",
       "summary": "Bilingual (Spanish/English) counseling, support groups, advocacy, restraining-order help, and court accompaniment for survivors of sexual assault and domestic violence, regardless of gender identity. Outreach focuses on Latino communities facing language and legal-status barriers.",
+      "tags": "Bilingual",
       "latitude": "36.91307",
       "lng": "-121.7533",
       "_rowNum": 8
@@ -642,6 +677,7 @@ async function loadData() {
       "contact": "(831) 464-6286; info@workforcescc.com",
       "address": "2045 40th Ave., Suite B, Capitola, CA 95010",
       "summary": "Free job search help, resume support, CalJOBS access, and training referrals. Full-service center also at 18 W. Beach St., Watsonville (831-763-8700).",
+      "tags": "Free / Low-cost",
       "latitude": "36.97495",
       "lng": "-121.95878",
       "_rowNum": 9
@@ -654,6 +690,7 @@ async function loadData() {
       "contact": "(831) 425-8132",
       "address": "300 Harvey West Blvd., Santa Cruz, CA 95060",
       "summary": "Supports adults with psychiatric disabilities and their families in building community ties and life skills. A strong fit for therapy clients returning to work.",
+      "tags": "",
       "latitude": "36.98806",
       "lng": "-122.0345",
       "_rowNum": 10
@@ -666,6 +703,7 @@ async function loadData() {
       "contact": "North County (831) 423-7713; South County (831) 722-2800; info@spinsc.org",
       "address": "740 Front St., Ste. 175, Santa Cruz, CA 95060; 294 Green Valley Rd., Ste. 313, Watsonville, CA 95076",
       "summary": "Parent-to-parent support for families of children with special needs: IEP clinics, a parent mentor program, workshops, and English- and Spanish-language support groups.",
+      "tags": "Youth, Bilingual",
       "latitude": "36.97463",
       "lng": "-122.02674",
       "_rowNum": 11
@@ -678,6 +716,7 @@ async function loadData() {
       "contact": "(831) 426-7322",
       "address": "530 Soquel Ave., Santa Cruz, CA 95062",
       "summary": "Confidential counseling for parents and children, court-approved parenting classes, and child abuse prevention education.",
+      "tags": "Youth",
       "latitude": "36.97652",
       "lng": "-122.01633",
       "_rowNum": 12
@@ -690,6 +729,7 @@ async function loadData() {
       "contact": "(831) 465-2217",
       "address": "Various locations / online",
       "summary": "Evidence-based parenting strategies for Santa Cruz County families with children of any age or ability.",
+      "tags": "Youth",
       "latitude": "",
       "lng": "",
       "_rowNum": 13
@@ -702,6 +742,7 @@ async function loadData() {
       "contact": "(831) 724-2253",
       "address": "21 Carr St., Watsonville, CA 95076",
       "summary": "Free legal help for low-income residents on housing, public benefits (CalWORKs, Medi-Cal, SSI), school discipline and special education disputes, and workplace issues such as wage claims.",
+      "tags": "Free / Low-cost",
       "latitude": "36.9144",
       "lng": "-121.7538",
       "_rowNum": 14
@@ -714,6 +755,7 @@ async function loadData() {
       "contact": "(831) 426-8824 (by appointment)",
       "address": "Santa Cruz (confirm current address)",
       "summary": "Free legal services for residents 60+ (or 55–59 if low-income), focused on health care access, housing, and age or disability discrimination.",
+      "tags": "Older Adults, Free / Low-cost",
       "latitude": "",
       "lng": "",
       "_rowNum": 15
@@ -726,6 +768,7 @@ async function loadData() {
       "contact": "(831) 458-6020",
       "address": "115B Coral St., Santa Cruz, CA 95060",
       "summary": "Emergency shelter, housing navigation, case management, and supportive services to help people move from homelessness into permanent housing.",
+      "tags": "Housing",
       "latitude": "36.9825",
       "lng": "-122.0255",
       "_rowNum": 16
@@ -738,6 +781,7 @@ async function loadData() {
       "contact": "(831) 728-9791; info@fitsantacruz.org",
       "address": "406 Main St., Ste. 326, Watsonville, CA 95076",
       "summary": "Housing support for families with children who are homeless or at risk of homelessness.",
+      "tags": "Housing, Youth",
       "latitude": "36.911111",
       "lng": "-121.756111",
       "_rowNum": 17
@@ -750,6 +794,7 @@ async function loadData() {
       "contact": "(831) 427-3500",
       "address": "East Cliff Family Health Center, 21507 East Cliff Dr., Santa Cruz, CA 95062; Women's Health Center, 250 Locust St., Santa Cruz, CA 95060",
       "summary": "Federally Qualified Health Center offering primary care, pediatrics, integrated behavioral health, prenatal care, and insurance enrollment in English and Spanish, regardless of ability to pay.",
+      "tags": "Bilingual, Free / Low-cost",
       "latitude": "36.9631",
       "lng": "-121.9795",
       "_rowNum": 18
@@ -762,6 +807,7 @@ async function loadData() {
       "contact": "(831) 728-0222",
       "address": "204 E. Beach St., Bldg. A, Watsonville, CA 95076",
       "summary": "Low-cost primary care for underserved, low-income communities in South Santa Cruz County and North Monterey County.",
+      "tags": "Free / Low-cost",
       "latitude": "36.9095",
       "lng": "-121.7535",
       "_rowNum": 19
@@ -774,6 +820,7 @@ async function loadData() {
       "contact": "HelpLine (831) 427-8020; Spanish (831) 205-7074; Office (831) 824-0406",
       "address": "35 Penny Lane, Suite 2, Watsonville, CA 95076",
       "summary": "Free support groups (family, peer, and parents of youth), Family-to-Family and Peer-to-Peer classes, and a volunteer help line that usually returns calls within 24 hours.",
+      "tags": "Free / Low-cost",
       "latitude": "36.9298",
       "lng": "-121.7745",
       "_rowNum": 20
@@ -786,6 +833,7 @@ async function loadData() {
       "contact": "(831) 469-0462",
       "address": "Santa Cruz (confirm address)",
       "summary": "Peer-run drop-in center for adults with mental health conditions, offering food, clothing, and regular support and recreational groups.",
+      "tags": "",
       "latitude": "",
       "lng": "",
       "_rowNum": 21
@@ -798,6 +846,7 @@ async function loadData() {
       "contact": "24-hr crisis line (877) 663-5433; admin (831) 459-9373 x2; sps24hr@fsa-cc.org",
       "address": "Phone-based",
       "summary": "Nationally accredited 24-hour multilingual crisis line for Santa Cruz, Monterey, and San Benito Counties, plus community education and bereavement support for suicide loss survivors. National backup: call or text 988.",
+      "tags": "Crisis, Bilingual",
       "latitude": "",
       "lng": "",
       "_rowNum": 22
@@ -810,6 +859,7 @@ async function loadData() {
       "contact": "(888) 900-4232 (24-hr, bilingual)",
       "address": "Phone-based",
       "summary": "Immediate crisis response for survivors of sexual assault and domestic violence, including accompaniment to law enforcement or medical facilities. Monarch was one of California's first funded rape crisis centers.",
+      "tags": "Crisis",
       "latitude": "",
       "lng": "",
       "_rowNum": 23
@@ -822,6 +872,7 @@ async function loadData() {
       "contact": "(800) 952-2335 (24 hrs); (831) 454-4170; Watsonville (831) 763-8200",
       "address": "Walk-in: 1400 Emeline Ave., Bldg. K, Santa Cruz, CA 95060; 1430 Freedom Blvd., Suite F, Watsonville, CA 95076",
       "summary": "Crisis assessment and intervention for adults and children regardless of insurance. Mobile teams respond in the field to serious mental health crises, with a separate youth/young-adult team; walk-in and mobile hours are weekdays 8–4 (confirm). After hours: Crisis Stabilization Program, 2250 Soquel Ave., (831) 600-2800, 24/7 evaluation for up to 24 hours by self-referral or 5150.",
+      "tags": "Crisis",
       "latitude": "36.9892",
       "lng": "-122.0195",
       "_rowNum": 24
@@ -834,6 +885,7 @@ async function loadData() {
       "contact": "(888) 900-4232 (24-hr)",
       "address": "Confidential location",
       "summary": "Safe emergency shelter for survivors of domestic violence, accessed through the 24-hour crisis line.",
+      "tags": "Crisis, Housing",
       "latitude": "",
       "lng": "",
       "_rowNum": 25
@@ -846,6 +898,7 @@ async function loadData() {
       "contact": "(831) 426-3062; DV resource line (866) 269-2559",
       "address": "303 Walnut Ave., Santa Cruz, CA 95060",
       "summary": "Resource center for women and families with DV support services, low-cost childcare, a food bank, a clothing closet, and support groups.",
+      "tags": "Free / Low-cost",
       "latitude": "36.9723",
       "lng": "-122.0318",
       "_rowNum": 26
@@ -858,6 +911,7 @@ async function loadData() {
       "contact": "(831) 425-5422; info@diversitycenter.org",
       "address": "1117 Soquel Ave., Santa Cruz, CA 95062",
       "summary": "Community center supporting LGBTQ+ people with a walk-in center, lending library, and youth, senior, and peer programs. For youth crisis: The Trevor Project, 1-866-488-7386 or text START to 678-678.",
+      "tags": "Youth, Older Adults",
       "latitude": "36.9782",
       "lng": "-122.0102",
       "_rowNum": 27
@@ -870,6 +924,7 @@ async function loadData() {
       "contact": "24/7 report line (877) 505-3299 or (831) 454-2273; general info (831) 454-4222; FCSSantaCruzCounty@santacruzcountyca.gov",
       "address": "1400 Emeline Ave., Bldg. K, Santa Cruz, CA 95060",
       "summary": "Screens and investigates reports of child abuse and neglect, assesses child safety, and connects families to services or Dependency Court. Mandated reporters also submit a written SCAR by fax to (831) 454-4717.",
+      "tags": "Youth, Crisis",
       "latitude": "36.9892",
       "lng": "-122.0195",
       "_rowNum": 28
@@ -882,6 +937,7 @@ async function loadData() {
       "contact": "(831) 688-0967",
       "address": "Santa Cruz",
       "summary": "Voluntary peer-run respite house for up to six people, staffed by peers with lived experience. An alternative to hospitalization for some clients.",
+      "tags": "Crisis",
       "latitude": "",
       "lng": "",
       "_rowNum": 29
@@ -894,6 +950,7 @@ async function loadData() {
       "contact": "(831) 454-2080; hphpreferral@santacruzcounty.us",
       "address": "115-A Coral St., Santa Cruz, CA 95060",
       "summary": "County health clinic for people experiencing homelessness, located alongside other shelter services on Coral Street.",
+      "tags": "Housing",
       "latitude": "36.9825",
       "lng": "-122.0255",
       "_rowNum": 30
@@ -906,6 +963,7 @@ async function loadData() {
       "contact": "Dial 211; 211scc@unitedwaysc.org",
       "address": "Phone-based",
       "summary": "24/7 multilingual referral line for nearly any health or human service need not covered above.",
+      "tags": "Bilingual",
       "latitude": "",
       "lng": "",
       "_rowNum": 31
@@ -918,6 +976,7 @@ async function loadData() {
       "contact": "Confirm phone (recently relocated downtown)",
       "address": "",
       "summary": "Naturopathic family medicine with a focus on gut health, hormones, and herbal medicine. Does not bill insurance.",
+      "tags": "",
       "latitude": "",
       "lng": "",
       "_rowNum": 32
@@ -930,6 +989,7 @@ async function loadData() {
       "contact": "(831) 476-8211; receptionist@fivebranches.edu",
       "address": "200 7th Ave. #115, Santa Cruz, CA 95062. Teaching clinic with supervised interns; usually the most affordable local acupuncture.",
       "summary": "",
+      "tags": "",
       "latitude": "36.964784",
       "lng": "-121.99645",
       "_rowNum": 33
@@ -942,6 +1002,7 @@ async function loadData() {
       "contact": "(831) 476-8211",
       "address": "",
       "summary": "Herbal medicine is one of the five branches practiced at the clinic. A Western herbalist still needs to be identified.",
+      "tags": "",
       "latitude": "",
       "lng": "",
       "_rowNum": 34
@@ -954,6 +1015,7 @@ async function loadData() {
       "contact": "(831) 428-2898",
       "address": "632 Frederick St., Santa Cruz, CA 95062. Practitioner collective.",
       "summary": "",
+      "tags": "",
       "latitude": "36.97682",
       "lng": "-122.00412",
       "_rowNum": 35
@@ -966,6 +1028,7 @@ async function loadData() {
       "contact": "Call center for current Reiki practitioners",
       "address": "",
       "summary": "Confirm which practitioners currently offer Reiki.",
+      "tags": "",
       "latitude": "",
       "lng": "",
       "_rowNum": 36
@@ -978,6 +1041,7 @@ async function loadData() {
       "contact": "See website",
       "address": "",
       "summary": "Usually offered as events rather than ongoing sessions; confirm schedule.",
+      "tags": "",
       "latitude": "",
       "lng": "",
       "_rowNum": 37
@@ -990,6 +1054,7 @@ async function loadData() {
       "contact": "See website",
       "address": "3707 Portola Dr., Santa Cruz. Offers in-studio sound bath journeys.",
       "summary": "",
+      "tags": "",
       "latitude": "36.96025",
       "lng": "-121.97018",
       "_rowNum": 38
@@ -1002,6 +1067,7 @@ async function loadData() {
       "contact": "Online",
       "address": "",
       "summary": "No verified local provider. UNM courses cover traditional Mexican/Latino healing. For local practitioners, ask promotoras at Salud Para La Gente or Watsonville family resource centers.",
+      "tags": "",
       "latitude": "",
       "lng": "",
       "_rowNum": 39
@@ -1014,6 +1080,7 @@ async function loadData() {
       "contact": "(831) 266-5016",
       "address": "543 Seabright Ave., Santa Cruz, CA 95062. Float tank, sauna, and infrared sauna.",
       "summary": "",
+      "tags": "",
       "latitude": "36.9689",
       "lng": "-122.0084",
       "_rowNum": 40
@@ -1026,6 +1093,7 @@ async function loadData() {
       "contact": "(831) 426-5787",
       "address": "526 Broadway, Santa Cruz. Classes, open figure-drawing sessions, and exhibitions.",
       "summary": "",
+      "tags": "Arts & Culture",
       "latitude": "36.9738",
       "lng": "-122.0142",
       "_rowNum": 41
@@ -1038,6 +1106,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Free monthly evening art walk through local studios and galleries. Low-barrier option for isolated clients.",
+      "tags": "Free / Low-cost, Arts & Culture",
       "latitude": "",
       "lng": "",
       "_rowNum": 42
@@ -1050,6 +1119,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "2100 Delaware Ave., Suite E, Santa Cruz. Memberships, classes, and events for all ages and skill levels.",
       "summary": "",
+      "tags": "Arts & Culture",
       "latitude": "36.9535",
       "lng": "-122.0468",
       "_rowNum": 43
@@ -1062,6 +1132,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Readings, workshops, and open-mic poetry events.",
+      "tags": "Arts & Culture",
       "latitude": "",
       "lng": "",
       "_rowNum": 44
@@ -1074,6 +1145,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Check local listings for current music open mics.",
+      "tags": "Arts & Culture",
       "latitude": "",
       "lng": "",
       "_rowNum": 45
@@ -1086,6 +1158,7 @@ async function loadData() {
       "contact": "(831) 427-2227",
       "address": "320-2 Cedar St., Santa Cruz. Concerts plus youth jazz education programs.",
       "summary": "",
+      "tags": "Arts & Culture",
       "latitude": "36.9715",
       "lng": "-122.0279",
       "_rowNum": 46
@@ -1098,6 +1171,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "1344 Pacific Ave. (mezzanine), Santa Cruz. Full-service ballroom dance studio.",
       "summary": "",
+      "tags": "Arts & Culture",
       "latitude": "36.9748",
       "lng": "-122.026",
       "_rowNum": 47
@@ -1110,6 +1184,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "1050 River St., Santa Cruz. Artist studios, theater, and community events.",
       "summary": "",
+      "tags": "Arts & Culture",
       "latitude": "36.9875",
       "lng": "-122.0298",
       "_rowNum": 48
@@ -1122,6 +1197,7 @@ async function loadData() {
       "contact": "(831) 420-5270",
       "address": "323 Church St., Santa Cruz. Recreation programs including Junior Lifeguards and the Teen Center; scholarships for low-income families.",
       "summary": "",
+      "tags": "",
       "latitude": "36.9739",
       "lng": "-122.0294",
       "_rowNum": 49
@@ -1134,6 +1210,7 @@ async function loadData() {
       "contact": "(831) 454-9254",
       "address": "104 Bronson St., Santa Cruz.",
       "summary": "",
+      "tags": "",
       "latitude": "36.9678",
       "lng": "-122.0022",
       "_rowNum": 50
@@ -1146,6 +1223,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Free group hikes led by volunteer leaders.",
+      "tags": "Free / Low-cost",
       "latitude": "",
       "lng": "",
       "_rowNum": 51
@@ -1158,6 +1236,7 @@ async function loadData() {
       "contact": "(831) 427-5070; volunteer@scvolunteercenter.org",
       "address": "1740 17th Ave., Santa Cruz, CA 95062. Matches volunteers with local organizations.",
       "summary": "",
+      "tags": "",
       "latitude": "36.9754",
       "lng": "-121.9902",
       "_rowNum": 52
@@ -1170,6 +1249,7 @@ async function loadData() {
       "contact": "(831) 459-5476",
       "address": "1156 High St., Santa Cruz. Youth food justice program where low-income teens grow and cook food.",
       "summary": "",
+      "tags": "Youth",
       "latitude": "36.9915",
       "lng": "-122.0583",
       "_rowNum": 53
@@ -1182,6 +1262,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Farm-based job training plus community volunteer days.",
+      "tags": "",
       "latitude": "",
       "lng": "",
       "_rowNum": 54
@@ -1194,6 +1275,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Daily meetings countywide, including Spanish-speaking groups. Non-12-step option: SMART Recovery (online).",
+      "tags": "Substance Use, Bilingual",
       "latitude": "",
       "lng": "",
       "_rowNum": 55
@@ -1206,6 +1288,7 @@ async function loadData() {
       "contact": "(831) 429-1964",
       "address": "705 Front St., Santa Cruz. Free First Friday admission and community events.",
       "summary": "",
+      "tags": "Arts & Culture",
       "latitude": "36.9741",
       "lng": "-122.0263",
       "_rowNum": 56
@@ -1218,6 +1301,7 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Donation-based meditation sits and classes.",
+      "tags": "Free / Low-cost",
       "latitude": "",
       "lng": "",
       "_rowNum": 57
@@ -1230,11 +1314,13 @@ async function loadData() {
       "contact": "Via website",
       "address": "",
       "summary": "Free programs and a searchable Community Information Database of local agencies, useful for keeping this list current.",
+      "tags": "Free / Low-cost",
       "latitude": "",
       "lng": "",
       "_rowNum": 58
     }
   ]
+
 
   markerLayer.clearLayers();
   allMarkers = [];
@@ -1273,6 +1359,7 @@ async function loadData() {
   // const missingNote = missing > 0 ? ` (${missing} not yet geocoded)` : '';
   setStatus('');
 
+  buildLegend();
   if (allMarkers.length > 0) {
     if (!loadFromHash) fitAll();
   }
@@ -1344,7 +1431,7 @@ async function loadData() {
 
       function renderNoAddress() {
         const rows = unplotted
-          .filter(row => activeTypes.has(typeKey(row)))
+          .filter(passesFilters)
           .sort((a, b) => (a.agency || '').localeCompare(b.agency || ''));
         document.getElementById('noaddr-count').textContent = `${rows.length} resource${rows.length !== 1 ? 's' : ''}`;
         const list = document.getElementById('noaddr-list');
