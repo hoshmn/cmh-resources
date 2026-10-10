@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geropsych Resource Map</title>
+<title>CMH Resource Map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -65,12 +65,6 @@
   .info-icon:hover .info-tooltip { display: block; } */
 
   .controls { display: flex; gap: 10px; align-items: center; }
-  input[type="text"] {
-    border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 13px;
-    font-family: inherit; font-size: 0.85rem; background: var(--bg); color: var(--text);
-    width: 220px; outline: none; transition: border-color 0.2s;
-  }
-  input[type="text"]:focus { border-color: var(--accent2); }
   .btn-refresh {
     background: var(--accent); color: white; border: none; border-radius: 8px;
     padding: 7px 14px; font-family: inherit; font-size: 0.85rem; cursor: pointer;
@@ -90,6 +84,11 @@
 
   #map { flex: 1; }
 
+  .leaflet-tooltip {
+    white-space: break-spaces;
+    width: 220px;
+    text-align: center;
+  }
   /* Leaflet popup custom styles */
   .leaflet-popup-content-wrapper {
     border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.13); padding: 0; overflow: hidden;
@@ -123,23 +122,25 @@
   .legend-title { font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.68rem; }
   .legend-item { display: flex; align-items: center; gap: 8px; }
   .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-  .dot-precise { background: var(--accent); }
-  .dot-fallback { background: #b08a4e; }
+  .legend-item { cursor: pointer; user-select: none; transition: opacity 0.15s; }
+  .legend-item.off { opacity: 0.4; text-decoration: line-through; }
+  .popup-row { font-size: 0.8rem; line-height: 1.45; margin-bottom: 5px; word-break: break-word; }
+  .popup-row-label { display: block; font-size: 0.66rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .popup-row a { color: var(--accent); text-decoration: none; }
+  .popup-row a:hover { text-decoration: underline; }
 
   .map-wrap { flex: 1; position: relative; display: flex; overflow: hidden; }
   #map { flex: 1; }
 
   .side-panel {
-    position: absolute; right: 0; top: 0; bottom: 0;
+    position: relative; flex: 0 0 320px;
     width: 280px; background: var(--panel);
     border-left: 1px solid var(--border);
     box-shadow: -4px 0 20px rgba(0,0,0,0.07);
-    display: flex; flex-direction: column;
-    transform: translateX(100%);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    display: none; flex-direction: column;
     z-index: 800;
   }
-  .side-panel.visible { transform: translateX(0); }
+  .side-panel.visible { display: flex; }
 
   .side-panel-header {
     padding: 14px 16px 10px;
@@ -152,7 +153,10 @@
   }
   .side-panel-count {
     font-size: 0.72rem; color: var(--muted); margin-top: 2px;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
   }
+  .zoom-all { color: var(--accent); text-decoration: none; white-space: nowrap; padding-right: 24px; }
+  .zoom-all:hover { text-decoration: underline; }
   .panel-toggle {
     display: flex; gap: 0;
     border: 1.5px solid var(--border); border-radius: 7px; overflow: hidden;
@@ -172,12 +176,15 @@
     overflow-y: auto; flex: 1; padding: 8px 0;
   }
   .side-panel-item {
+    display: flex; align-items: center; gap: 10px;
     padding: 10px 16px; cursor: pointer;
     border-bottom: 1px solid var(--border);
     transition: background 0.15s;
   }
   .side-panel-item:last-child { border-bottom: none; }
   .side-panel-item:hover { background: var(--bg); }
+  .side-panel-item-text { min-width: 0; flex: 1; }
+  .side-panel-pin { flex-shrink: 0; display: block; }
   .side-panel-item-name {
     font-size: 0.85rem; font-weight: 500; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -195,80 +202,41 @@
   }
   .map-style-select:focus { border-color: var(--accent2); } */
 
-  .btn-info {
-    background: none; border: 1.5px solid var(--border); border-radius: 8px;
-    padding: 4px 11px; font-family: inherit; font-size: 0.78rem;
-    margin-left: 12px;
-    color: var(--muted); cursor: pointer; transition: border-color 0.2s, color 0.2s;
-    white-space: nowrap;
-  }
-  .btn-info:hover { border-color: var(--accent2); color: var(--accent); }
-
-  .modal-overlay {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,0,0,0.38); z-index: 10000;
-    align-items: center; justify-content: center;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: var(--panel); border-radius: 16px;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-    width: min(680px, 92vw); max-height: 82vh;
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-  .modal-header {
-    padding: 22px 28px 16px; border-bottom: 1px solid var(--border);
-    flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start;
-  }
-  .modal-title {
-    font-family: 'DM Serif Display', serif; font-size: 1.45rem;
-    color: var(--accent); line-height: 1.2;
-  }
-  .modal-subtitle {
-    font-size: 0.82rem; color: var(--muted); margin-top: 4px; font-style: italic;
-  }
   .close-button {
     background: none; border: none; font-size: 1.3rem; cursor: pointer;
     color: var(--muted); line-height: 1; padding: 2px 4px; flex-shrink: 0;
     transition: color 0.15s;
   }
   .close-button:hover { color: var(--text); }
-  .side-panel-header .close-button {
-    position: absolute; right: 12px; top: 12px; padding: 4px 8px;
+  .panel-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+  .panel-section + .panel-section { border-top: 1px solid var(--border); }
+  .panel-section.collapsed { flex: none; }
+  .panel-section.collapsed .side-panel-list { display: none; }
+  .panel-section.collapsed .side-panel-header { border-bottom: none; }
+  .caret-button {
+    position: absolute; right: 12px; top: 12px; width: 26px; height: 26px;
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; border-radius: 6px;
   }
-  .modal-body {
-    overflow-y: auto; padding: 24px 28px 28px; flex: 1;
-    font-size: 0.88rem; line-height: 1.75; color: #333;
+  .caret-button:hover { color: var(--text); background: var(--bg); }
+  .caret-button::before {
+    content: ''; width: 7px; height: 7px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translate(-1px, -1px); transition: transform 0.2s;
   }
-  .modal-body p { margin-bottom: 1.1em; }
-  .modal-body h3 {
-    font-family: 'DM Serif Display', serif; font-size: 1.05rem;
-    color: var(--accent); margin: 1.6em 0 0.6em;
-  }
-  .modal-body .references { font-size: 0.8rem; color: var(--muted); line-height: 1.7; }
-  .modal-body .references p { margin-bottom: 0.6em; padding-left: 1.5em; text-indent: -1.5em; }
-  .modal-body .references a { color: var(--accent); }
-  .modal-tech-note {
-    margin-top: 2.4em; background: #f3f3f0; border: 1px solid var(--border);
-    border-radius: 8px; padding: 12px 14px;
-    font-family: 'Courier New', monospace; font-size: 0.76rem;
-    color: var(--muted); line-height: 1.65;
-  }
-  .modal-tech-note-label {
-    font-weight: 700; letter-spacing: 0.05em; color: #888;
-  }
-  #count-loaded {
-    margin-top: 1.4em; font-size: 0.8rem; color: var(--accent);
-    font-weight: 500; letter-spacing: 0.01em;
-  }
-
+  .panel-section.collapsed .caret-button::before { transform: rotate(-45deg); }
+  .side-panel-header { padding-right: 46px; }
+  .noaddr-detail { display: none; margin-top: 6px; }
+  .side-panel-item.open .noaddr-detail { display: block; }
+  .side-panel-item.noaddr { align-items: flex-start; }
+  .side-panel-item.noaddr .popup-inner { padding: 0; }
+  .side-panel-empty { padding: 10px 16px; font-size: 0.75rem; color: var(--muted); font-style: italic; }
   @media (max-width: 600px) {
     .logo-full { display: none; }
     .logo-short { display: inline; }
     header { padding: 10px 14px; }
     .panel-toggle-wrap { flex-direction: column; align-items: flex-start; gap: 4px; }
     .resource-control-label { font-size: 0.68rem; }
-    input[type="text"] { width: 75px; }
   }
 </style>
 </head>
@@ -276,7 +244,7 @@
 
 <header>
   <div class="header-left">
-    <span class="logo"><span class="logo-full">Geropsych Resource Map</span><span class="logo-short">GRM</span></span>
+    <span class="logo"><span class="logo-full">Community Mental Health Resource Map</span><span class="logo-short">GRM</span></span>
     <!-- <div class="info-icon">i<span class="info-tooltip">
       <div id="count-loaded"></div><br />
       <hr /><br /> When resources are
@@ -286,15 +254,13 @@
       The lat/lng values can be manually corrected on the spreadsheet (scroll all the way to the right to find them).
       </span>
       </div> -->
-    <button class="btn-info" onclick="document.getElementById('info-modal').classList.add('open')">About</button>
     <span class="status" id="status">Loading…</span>
   </div>
   <div class="controls">
     <div class="panel-toggle-wrap">
       <span class="resource-control-label">Resources List</span>
       <div class="panel-toggle">
-      <button id="pt-auto" class="active" onclick="setPanelMode('auto')">auto</button>
-      <button id="pt-visible" onclick="setPanelMode('visible')">show</button>
+      <button id="pt-visible" class="active" onclick="setPanelMode('visible')">show</button>
       <button id="pt-hidden" onclick="setPanelMode('hidden')">hide</button>
     </div>
     </div>
@@ -303,71 +269,9 @@
       <option value="bw">B&amp;W</option>
       <option value="dark">Dark</option>
     </select> -->
-    <input type="text" id="search" placeholder="Search resources…">
     <!-- <button class="btn-refresh" onclick="loadData()">↺ Refresh</button> -->
   </div>
 </header>
-
-<div class="modal-overlay" id="info-modal" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="modal">
-    <div class="modal-header">
-      <div>
-        <div class="modal-title">Geropsych Resource Map</div>
-        <div class="modal-subtitle">An interactive tool for exploring resources supporting older adults</div>
-      </div>
-      <button class="close-button"
-        onclick="document.getElementById('info-modal').classList.remove('open')">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p>This interactive map consolidates thousands of community resources gathered by
-        therapists-in-training into a searchable, geographically organized reference tool. It is designed for use by older
-        adults, their families and caregivers, and the
-        clinicians who support them. Resources span categories including elder care, housing support, mental
-        health services, grief counseling, legal aid, and dementia-specific programs.</p>
-
-      <p>James Hillman (1999) writes that character in later life is shaped not by adding to oneself but by revealing
-        what was
-        always there — a process requiring conditions of safety, continuity, and support. For clinicians working with
-        older clients, this means that the deep psychological work of aging cannot happen in isolation from the material
-        realities of a person's life. When a client is navigating housing instability, caregiver burnout, or lack of
-        transportation, the therapeutic hour cannot hold everything. As Sheenagh Burns (2008) observed from geropsychology
-        practice in long-term care settings, effective work with older adults requires the clinician to function as a
-        connector to systems of support, not merely an individual practitioner.</p>
-
-      <p>Research on aging consistently finds that social connectedness and access to services are among the strongest
-        predictors of wellbeing in later life (Cornwell &amp; Waite, 2009). Yet other research consistently identifies a
-        substantial unmet need for mental health services among older adults, with practical
-        barriers — including not knowing where to go — among the most commonly cited obstacles to care (Lavingia et al.,
-        2020). This tool was built to fill that need.</p>
-
-      <h3>References</h3>
-      <div class="references">
-        <p>Burns, S. U. (2008). Geropsychology practice: One psychologist's experience in long-term care.
-          <em>Psychological Services, 5</em>(1), 73–84. <a href="https://doi.org/10.1037/1541-1559.5.1.73"
-            target="_blank">https://doi.org/10.1037/1541-1559.5.1.73</a>
-        </p>
-        <p>Cornwell, E. Y., &amp; Waite, L. J. (2009). Social disconnectedness, perceived isolation, and health among
-          older adults. <em>Journal of Health and Social Behavior, 50</em>(1), 31–48. <a
-            href="https://doi.org/10.1177/002214650905000103"
-            target="_blank">https://doi.org/10.1177/002214650905000103</a></p>
-        <p>Hillman, J. (1999). <em>The force of character: And the lasting life.</em> Random House.</p>
-        <p>Lavingia, R., Jones, K., &amp; Asghar-Ali, A. A. (2020). A systematic review of barriers faced by older
-          adults in seeking and accessing mental health care. <em>Journal of Psychiatric Practice, 26</em>(5), 367–382.
-          <a href="https://doi.org/10.1097/PRA.0000000000000491"
-            target="_blank">https://doi.org/10.1097/PRA.0000000000000491</a>
-        </p>
-      </div>
-      <div class="modal-tech-note">
-        <span class="modal-tech-note-label">TECHNICAL NOTE:</span> Every night, a geocoder App Script runs to find the locations
-        of newly added resources. It determines lat/lng values based on
-        the resource's name, city, county, and state. Rows missing these details may appear in the wrong location on the map or
-        not at all. The lat/lng values can also be manually set (or corrected) on the spreadsheet directly; scroll all the way
-        to the right to find them.
-        <div id="count-loaded"></div>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="progress-bar" id="progress-bar">
   <div class="progress-fill" id="progress-fill"></div>
@@ -375,33 +279,43 @@
 
 <div class="map-wrap">
   <div id="map"></div>
-  <div class="side-panel" id="side-panel">
-    <div class="side-panel-header">
-      <button class="close-button" onclick="setPanelMode('hidden')">&times;</button>
-      <div class="side-panel-title">Resources in this area</div>
-      <div class="side-panel-count" id="side-panel-count"></div>
+  <div class="side-panel visible" id="side-panel">
+    <div class="panel-section" id="sec-area">
+      <div class="side-panel-header">
+        <button class="caret-button" aria-expanded="true" aria-label="Toggle resources in this area" onclick="toggleSection('sec-area')"></button>
+        <div class="side-panel-title">Resources in this area</div>
+        <div class="side-panel-count">
+          <span id="side-panel-count"></span>
+          <a href="#" class="zoom-all" id="zoom-all">zoom out to view all</a>
+        </div>
+      </div>
+      <div class="side-panel-list" id="side-panel-list"></div>
     </div>
-    <div class="side-panel-list" id="side-panel-list"></div>
+    <div class="panel-section collapsed" id="sec-noaddr">
+      <div class="side-panel-header">
+        <button class="caret-button" aria-expanded="false" aria-label="Toggle resources without an address" onclick="toggleSection('sec-noaddr')"></button>
+        <div class="side-panel-title">Resources without an address</div>
+        <div class="side-panel-count"><span id="noaddr-count"></span></div>
+      </div>
+      <div class="side-panel-list" id="noaddr-list"></div>
+    </div>
   </div>
+  <div class="legend" id="legend"></div>
 </div>
-
-<!-- <div class="legend">
-  <div class="legend-title">Marker type</div>
-  <div class="legend-item"><div class="legend-dot dot-precise"></div> Geocoded location</div>
-  <div class="legend-item"><div class="legend-dot dot-fallback"></div> City/county fallback</div>
-</div> -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 // ── CONFIGURATION ──────────────────────────────────────────────────────────────
 
-const sheet_id = '1SbmY2A8dRRxS6HFoWJ63JI5Hrdsae5RyC81sZVBL0vI';
+const sheet_id = '15XdjNAnOWhABvnkO1G-tmJxnRrZwDz4GpB_VEBLAgf4';
 // Paste your Google Apps Script Web App URL here after deploying:
 // const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWFYFzwZ6eyQ76vGxgeqdAVlxV4s30RxX9Dlmp4NvufeEDN2F8unxDlX1kr4I1IbXmmA/exec';
 // const APPS_SCRIPT_URL_TEST = 'https://script.google.com/macros/s/AKfycbwpo2JWleSpPlyn1pFJq2hcM8NeSPy7ya7fYsYsAzIaLvgh8tsDFQF9xVlURXonjhGTMA/exec';
 // ──────────────────────────────────────────────────────────────────────────────
 
 const carHash = "cb1_40w3_1_123c7e637ff349e9ee317c2b";
+const locCarHash = "cb1_40w3_2_da5790ccae4026faccd8d681"; // CARTO key for local/non-GitHub hosts (paste yours here)
+const tileKey = location.href.includes("github") ? carHash : locCarHash;
 let loadFromHash = false;
 
 function getHashView() {
@@ -425,7 +339,7 @@ const MAP_STYLES = {
 };
 const CARTO_ATTR = '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>';
 
-let tileLayer = L.tileLayer(MAP_STYLES.minimal.url + `?key=${carHash}`, { attribution: CARTO_ATTR, maxZoom: 19 }).addTo(map);
+let tileLayer = L.tileLayer(MAP_STYLES.minimal.url + `?key=${tileKey}`, { attribution: CARTO_ATTR, maxZoom: 19 }).addTo(map);
 
 function setMapStyle(key) {
   const style = MAP_STYLES[key] || MAP_STYLES.minimal;
@@ -434,31 +348,36 @@ function setMapStyle(key) {
 }
 
 let allMarkers = [];
+let unplotted = []; // rows with no usable lat/lng, so no pin
 let markerLayer = L.layerGroup().addTo(map);
 let coordMap = {};
-let pinColorIndex = 0;
 
-const PIN_COLORS = [
-  '#e63946', // red
-  '#3a86ff', // bright blue
-  '#ff006e', // hot pink
-  '#fb5607', // vivid orange
-  '#8338ec', // purple
-  '#06d6a0', // mint
-  '#ffbe0b', // golden yellow
-  '#00b4d8', // sky blue
-  '#6a994e', // muted sage green
-  '#457b9d', // muted steel blue
-];
+const TYPE_COLORS = {
+  'mental health':      '#b78dff', // blue
+  'community':          '#ffce15', // orange
+  'integrative health': '#1ae5b0', // green
+};
+const TYPE_LABELS = { 'mental health': 'Mental Health', 'community': 'Community', 'integrative health': 'Integrative Health' };
+const DEFAULT_PIN_COLOR = '#7a7a72';
+const activeTypes = new Set(Object.keys(TYPE_COLORS));
 
-function getLoc(row) {
-  const county = row.county ? (row.county.includes('County') ? row.county : row.county + ' County') : '';
-  const parts = [row.city, county, row.state].filter(Boolean);
-  return parts.length > 0 ? parts.join(', ') : '';
+function typeKey(row) { return (row.type || '').trim().toLowerCase(); }
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function toUrl(v) { return /^https?:\/\//i.test(v) ? v : 'https://' + v; }
+
+function getLoc(row) { return row.address || ''; }
+
+function pinSVG(color = DEFAULT_PIN_COLOR) {
+  return `<svg class="side-panel-pin" xmlns="http://www.w3.org/2000/svg" width="8" height="25" viewBox="0 0 12 38">
+    <circle cx="6" cy="6" r="6" fill="${color}"/>
+    <rect x="5.25" y="11" width="1.5" height="23" fill="#c0c0cc"/>
+    <polygon points="5,34 7,34 6,38" fill="#a8a8b8"/>
+    </svg>`;
 }
 
-function makeIcon(type, angle = 0, colorIndex = 0, isShifted = false) {
-  const headColor = PIN_COLORS[colorIndex % PIN_COLORS.length];
+function makeIcon(angle = 0, headColor = DEFAULT_PIN_COLOR, isShifted = false) {
   const shaftColor = isShifted ? '#78788a' : '#c0c0cc';
   const tipColor   = isShifted ? '#606070' : '#a8a8b8';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="38" viewBox="0 0 12 38"
@@ -475,36 +394,49 @@ function makeIcon(type, angle = 0, colorIndex = 0, isShifted = false) {
 
 let con = false; 
 // ── POPUP HTML ─────────────────────────────────────────────────────────────────
-function popupHTML(row, coords) {
-  const loc = getLoc(row);
-  return `<div class="popup-inner">
-    <div class="popup-name">${row.name || ''}</div>
-    ${loc ? `<div class="popup-loc">📍 ${loc}</div>` : ''}
-    ${row.description ? `<div class="popup-desc">${row.description}</div>` : ''}
-    <div class="popup-contact">
-      ${row.free ? `<span>💲 Is it free? <strong>${row.free}</strong></span>` : ''}
-      ${row.website ? `<span>🌐 <a href="${row.website}" target="_blank">${row.website}</a></span>` : ''}
-      ${row.phone ? `<span>📞 <a href="tel:${row.phone}">${row.phone}</a></span>` : ''}
-      ${row.email ? `<span>✉️ <a href="mailto:${row.email}">${row.email}</a></span>` : ''}
-      ${row.address ? `<span>🏠 ${row.address}</span>` : ''}
-      </div>
-      ${coords.type === 'fallback' ? `<div class="popup-fallback-note">⚠ Approximate location (city-level)</div>` : ''}
-      </div>`;
-  // ${coords.lat ? `<span>Plotted: ${coords.lat}, ${coords.lng}</span>` : ''}
+function popupHTML(row) {
+  const fields = [
+    ['Category', row.category],
+    ['Agency', row.agency],
+    ['Website', row.website && `<a href="${esc(toUrl(row.website))}" target="_blank" rel="noopener">${esc(row.website)}</a>`],
+    ['Contact', row.contact],
+    ['Address', row.address],
+    ['Summary', row.summary],
+  ];
+  return `<div class="popup-inner">${fields.filter(([, v]) => v).map(([label, v]) =>
+    `<div class="popup-row"><span class="popup-row-label">${label}</span>${label === 'Website' ? v : esc(v)}</div>`
+  ).join('')}</div>`;
 }
 
-// ── SEARCH FILTER ─────────────────────────────────────────────────────────────
-document.getElementById('search').addEventListener('input', function() {
-  const q = this.value.toLowerCase();
+// ── FILTERS (legend type toggles) ───────────────────────────────
+function applyFilters() {
   allMarkers.forEach(({ marker, row }) => {
-    const text = Object.values(row).join(' ').toLowerCase();
-    if (text.includes(q)) {
+    const show = activeTypes.has(typeKey(row));
+    if (show) {
       if (!markerLayer.hasLayer(marker)) markerLayer.addLayer(marker);
     } else {
       markerLayer.removeLayer(marker);
     }
   });
-});
+  updateSidePanel();
+}
+
+function buildLegend() {
+  const legend = document.getElementById('legend');
+  legend.innerHTML = '<div class="legend-title">Type (click to filter)</div>' +
+    Object.keys(TYPE_COLORS).map(k =>
+      `<div class="legend-item" data-type="${k}"><div class="legend-dot" style="background:${TYPE_COLORS[k]}"></div>${TYPE_LABELS[k]}</div>`
+    ).join('');
+  legend.querySelectorAll('.legend-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const k = el.dataset.type;
+      if (activeTypes.has(k)) activeTypes.delete(k); else activeTypes.add(k);
+      el.classList.toggle('off', !activeTypes.has(k));
+      applyFilters();
+    });
+  });
+}
+buildLegend();
 
 // ── MAIN LOAD ──────────────────────────────────────────────────────────────────
 function setStatus(msg, cls) {
@@ -536,7 +468,7 @@ async function fetchSheetRows() {
     cols.forEach((col, i) => { obj[col] = r.c[i] && r.c[i].v != null ? String(r.c[i].v).trim() : ''; });
     obj._rowNum = idx + 1; // for debugging (approx, empty rows are skipped in the API response)
     return obj;
-  }).filter(r => r.name);
+  }).filter(r => r.agency);
 }
 
 // ── SHEET LOADING (via Apps Script proxy — solves CORS) ───────────────────────
@@ -554,7 +486,7 @@ async function fetchSheetRows() {
 // Each group of 3 shares a lat/lng offset: [vertical, rotated-right, rotated-left]
 // Groups 0: original | 1: up-right | 2: down-left | 3: up-left | 4: down-right
 // After 5 groups (15 pins), cycle back to original with 2x angle, then 3x, etc.
-const BASE_ANGLE = 17.15;
+const BASE_ANGLE = 22.15;
 const COORD_OFFSETS = [
   [ 0,       0      ],  // original
   [ 0.0001,  0.0001 ],  // up-right
@@ -584,38 +516,737 @@ function placeMarker(row, coords) {
 
   const marker = L.marker(
     [coords.lat + dlat, coords.lng + dlng],
-    { icon: makeIcon(coords.type, angle, pinColorIndex++, isShifted), zIndexOffset: -posInGroup * 100 }
+    { icon: makeIcon(angle, TYPE_COLORS[typeKey(row)], isShifted), zIndexOffset: -posInGroup * 100 }
   );
-  // if (coords.type === 'precise') return;
-  marker.bindPopup(popupHTML(row, coords), { maxWidth: 320 });
-  let loc = [row.city, row.county ? row.county + ' County' : '', row.state].filter(Boolean).join(', ');
-  if (loc.length > 50) loc = loc.slice(0, 46) + '...'; // truncate long locations
-  let name = row.name || '';
-  if (name.length > 50) name = name.slice(0, 46) + '...';
+  marker.bindPopup(popupHTML(row), { maxWidth: 320 });
   const θ = angle * Math.PI / 180;
   const tooltipOffset = [Math.round(32 * Math.sin(θ)), Math.round(-32 * Math.cos(θ)) - 10];
-  marker.bindTooltip(`<strong>${name}</strong>${loc ? `<br>${loc}` : ''}`, { direction: 'top', offset: tooltipOffset });
+  marker.bindTooltip(esc(row.agency), { direction: 'top', offset: tooltipOffset });
   marker.on('click', () => {
     console.log('Marker clicked:', row);
     marker.closeTooltip();
   });
-  markerLayer.addLayer(marker);
+  if (activeTypes.has(typeKey(row))) markerLayer.addLayer(marker);
   allMarkers.push({ marker, row });
+}
+
+function fitAll() {
+  if (!allMarkers.length) return;
+  map.fitBounds(L.featureGroup(allMarkers.map(m => m.marker)).getBounds(), { padding: [30, 30] });
 }
 
 // ── MAIN LOAD ──────────────────────────────────────────────────────────────────
 async function loadData() {
+  const cachedRows = [
+    {
+      "type": "Mental Health",
+      "category": "(1) Inpatient psychiatric hospital",
+      "agency": "Santa Cruz County Psychiatric Health Facility (PHF), operated by Telecare",
+      "website": "telecarecorp.com/santa-cruz-psychiatric-health-facility",
+      "contact": "Main: (831) 600-2801",
+      "address": "2250 Soquel Ave., Suite 150, Santa Cruz, CA 95062",
+      "summary": "A 16-bed locked acute inpatient unit for adults 18+ with serious mental illness, open 24/7. Admission runs through the attached Crisis Stabilization Program, which assesses first and refers into the PHF if more intensive care is needed. Does not admit minors; youth hospitalization is out of county (e.g., Fremont Hospital, Mills-Peninsula).",
+      "latitude": "36.98565",
+      "lng": "-121.98402",
+      "_rowNum": 1
+    },
+    {
+      "type": "Mental Health",
+      "category": "(2) Behavioral (ABA) services, children & youth",
+      "agency": "BlueSprig (formerly Trumpet Behavioral Health), Capitola",
+      "website": "bluesprigautism.com",
+      "contact": "(831) 424-5565; Care Coordinator via online intake form",
+      "address": "2121 41st Ave., Ste. 211, Capitola, CA 95010",
+      "summary": "In-home ABA for children with autism in Santa Cruz County, delivered by BCBAs and RBTs. Targets communication, independence, and daily living skills. Accepts most major insurance plans.",
+      "latitude": "36.97486",
+      "lng": "-121.95663",
+      "_rowNum": 2
+    },
+    {
+      "type": "Mental Health",
+      "category": "(2) ABA, alternate",
+      "agency": "ABRITE Organization",
+      "website": "abrite.org",
+      "contact": "info@abrite.org",
+      "address": "749 37th Ave., Santa Cruz, CA 95062",
+      "summary": "Early intensive behavioral intervention for young learners, with an individualized curriculum built around each child's strengths and needs.",
+      "latitude": "36.96328",
+      "lng": "-121.96783",
+      "_rowNum": 3
+    },
+    {
+      "type": "Mental Health",
+      "category": "(3) Substance use, youth",
+      "agency": "Encompass Community Services – Youth Services",
+      "website": "encompasscs.org",
+      "contact": "(831) 429-8350 ext. 0; youthservices@encompasscs.org",
+      "address": "709 Mission St., Santa Cruz, CA 95060",
+      "summary": "Counseling and substance use services for teens and their families through the county's largest nonprofit human services agency. A good first call for North County youth.",
+      "latitude": "36.96864",
+      "lng": "-122.03667",
+      "_rowNum": 4
+    },
+    {
+      "type": "Mental Health",
+      "category": "(3) Substance use, youth (South County)",
+      "agency": "Pajaro Valley Prevention & Student Assistance (PVPSA)",
+      "website": "pvpsa.org",
+      "contact": "(831) 728-6445; admin@pvpsa.org",
+      "address": "335 E. Lake Ave., Watsonville, CA 95076",
+      "summary": "Prevention, education, and counseling services for students, families, and staff in the Pajaro Valley Unified School District.",
+      "latitude": "36.91417",
+      "lng": "-121.75133",
+      "_rowNum": 5
+    },
+    {
+      "type": "Mental Health",
+      "category": "(3) Substance use, adult",
+      "agency": "Janus of Santa Cruz",
+      "website": "janussc.org",
+      "contact": "(831) 462-1060; toll-free (866) 526-8772; info@janussc.org",
+      "address": "200 7th Ave., Suite 150, Santa Cruz, CA 95062",
+      "summary": "Full-service SUD treatment center founded in 1976 on a social-model approach, serving over 2,500 clients and families a year. Also runs a perinatal residential program at 516 Chestnut St. (831-423-9015).",
+      "latitude": "36.964784",
+      "lng": "-121.99645",
+      "_rowNum": 6
+    },
+    {
+      "type": "Mental Health",
+      "category": "(3) Substance use, adult (alternate)",
+      "agency": "ALTO SUD Outpatient (Encompass)",
+      "website": "encompasscs.org/alto",
+      "contact": "(831) 465-4618; altosudreferrals@encompasscs.org",
+      "address": "716 Ocean St., Santa Cruz, CA 95060",
+      "summary": "Outpatient SUD treatment with a dedicated referral email, which makes clinician referrals simple.",
+      "latitude": "36.98225",
+      "lng": "-122.02324",
+      "_rowNum": 7
+    },
+    {
+      "type": "Mental Health",
+      "category": "(4) Sexual abuse treatment / support groups",
+      "agency": "Monarch Services / Servicios Monarca",
+      "website": "monarchscc.org",
+      "contact": "Watsonville (831) 722-4532; Santa Cruz (831) 425-4030; TDD (800) 735-2929",
+      "address": "233 E. Lake Ave., Watsonville, CA 95076",
+      "summary": "Bilingual (Spanish/English) counseling, support groups, advocacy, restraining-order help, and court accompaniment for survivors of sexual assault and domestic violence, regardless of gender identity. Outreach focuses on Latino communities facing language and legal-status barriers.",
+      "latitude": "36.91307",
+      "lng": "-121.7533",
+      "_rowNum": 8
+    },
+    {
+      "type": "Mental Health",
+      "category": "(5) Vocational training",
+      "agency": "Workforce Santa Cruz County – Capitola Career Center",
+      "website": "santacruzhumanservices.org/Workforcescc",
+      "contact": "(831) 464-6286; info@workforcescc.com",
+      "address": "2045 40th Ave., Suite B, Capitola, CA 95010",
+      "summary": "Free job search help, resume support, CalJOBS access, and training referrals. Full-service center also at 18 W. Beach St., Watsonville (831-763-8700).",
+      "latitude": "36.97495",
+      "lng": "-121.95878",
+      "_rowNum": 9
+    },
+    {
+      "type": "Mental Health",
+      "category": "(5) Vocational, psychiatric disability",
+      "agency": "Community Connection (Encompass)",
+      "website": "encompasscs.org",
+      "contact": "(831) 425-8132",
+      "address": "300 Harvey West Blvd., Santa Cruz, CA 95060",
+      "summary": "Supports adults with psychiatric disabilities and their families in building community ties and life skills. A strong fit for therapy clients returning to work.",
+      "latitude": "36.98806",
+      "lng": "-122.0345",
+      "_rowNum": 10
+    },
+    {
+      "type": "Mental Health",
+      "category": "(6) Education advocacy",
+      "agency": "Special Parents Information Network (SPIN)",
+      "website": "spinsc.org",
+      "contact": "North County (831) 423-7713; South County (831) 722-2800; info@spinsc.org",
+      "address": "740 Front St., Ste. 175, Santa Cruz, CA 95060; 294 Green Valley Rd., Ste. 313, Watsonville, CA 95076",
+      "summary": "Parent-to-parent support for families of children with special needs: IEP clinics, a parent mentor program, workshops, and English- and Spanish-language support groups.",
+      "latitude": "36.97463",
+      "lng": "-122.02674",
+      "_rowNum": 11
+    },
+    {
+      "type": "Mental Health",
+      "category": "(7) Parenting classes",
+      "agency": "Parents Center",
+      "website": "parentscenter.org",
+      "contact": "(831) 426-7322",
+      "address": "530 Soquel Ave., Santa Cruz, CA 95062",
+      "summary": "Confidential counseling for parents and children, court-approved parenting classes, and child abuse prevention education.",
+      "latitude": "36.97652",
+      "lng": "-122.01633",
+      "_rowNum": 12
+    },
+    {
+      "type": "Mental Health",
+      "category": "(7) Parenting, alternate",
+      "agency": "Triple P – Positive Parenting Program (Santa Cruz County)",
+      "website": "",
+      "contact": "(831) 465-2217",
+      "address": "Various locations / online",
+      "summary": "Evidence-based parenting strategies for Santa Cruz County families with children of any age or ability.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 13
+    },
+    {
+      "type": "Mental Health",
+      "category": "(8) Legal assistance",
+      "agency": "California Rural Legal Assistance (CRLA)",
+      "website": "crla.org",
+      "contact": "(831) 724-2253",
+      "address": "21 Carr St., Watsonville, CA 95076",
+      "summary": "Free legal help for low-income residents on housing, public benefits (CalWORKs, Medi-Cal, SSI), school discipline and special education disputes, and workplace issues such as wage claims.",
+      "latitude": "36.9144",
+      "lng": "-121.7538",
+      "_rowNum": 14
+    },
+    {
+      "type": "Mental Health",
+      "category": "(8) Legal, older adults",
+      "agency": "Senior Citizens Legal Services",
+      "website": "seniorlegal.org",
+      "contact": "(831) 426-8824 (by appointment)",
+      "address": "Santa Cruz (confirm current address)",
+      "summary": "Free legal services for residents 60+ (or 55–59 if low-income), focused on health care access, housing, and age or disability discrimination.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 15
+    },
+    {
+      "type": "Mental Health",
+      "category": "(9) Housing assistance",
+      "agency": "Housing Matters",
+      "website": "housingmatterssc.org",
+      "contact": "(831) 458-6020",
+      "address": "115B Coral St., Santa Cruz, CA 95060",
+      "summary": "Emergency shelter, housing navigation, case management, and supportive services to help people move from homelessness into permanent housing.",
+      "latitude": "36.9825",
+      "lng": "-122.0255",
+      "_rowNum": 16
+    },
+    {
+      "type": "Mental Health",
+      "category": "(9) Housing, families",
+      "agency": "Families in Transition",
+      "website": "fitsantacruz.org",
+      "contact": "(831) 728-9791; info@fitsantacruz.org",
+      "address": "406 Main St., Ste. 326, Watsonville, CA 95076",
+      "summary": "Housing support for families with children who are homeless or at risk of homelessness.",
+      "latitude": "36.911111",
+      "lng": "-121.756111",
+      "_rowNum": 17
+    },
+    {
+      "type": "Mental Health",
+      "category": "(10) Medical services",
+      "agency": "Santa Cruz Community Health",
+      "website": "schealthcenters.org",
+      "contact": "(831) 427-3500",
+      "address": "East Cliff Family Health Center, 21507 East Cliff Dr., Santa Cruz, CA 95062; Women's Health Center, 250 Locust St., Santa Cruz, CA 95060",
+      "summary": "Federally Qualified Health Center offering primary care, pediatrics, integrated behavioral health, prenatal care, and insurance enrollment in English and Spanish, regardless of ability to pay.",
+      "latitude": "36.9631",
+      "lng": "-121.9795",
+      "_rowNum": 18
+    },
+    {
+      "type": "Mental Health",
+      "category": "(10) Medical, South County",
+      "agency": "Salud Para La Gente",
+      "website": "splg.org",
+      "contact": "(831) 728-0222",
+      "address": "204 E. Beach St., Bldg. A, Watsonville, CA 95076",
+      "summary": "Low-cost primary care for underserved, low-income communities in South Santa Cruz County and North Monterey County.",
+      "latitude": "36.9095",
+      "lng": "-121.7535",
+      "_rowNum": 19
+    },
+    {
+      "type": "Mental Health",
+      "category": "(11) Mental health advocacy",
+      "agency": "NAMI Santa Cruz County",
+      "website": "namiscc.org",
+      "contact": "HelpLine (831) 427-8020; Spanish (831) 205-7074; Office (831) 824-0406",
+      "address": "35 Penny Lane, Suite 2, Watsonville, CA 95076",
+      "summary": "Free support groups (family, peer, and parents of youth), Family-to-Family and Peer-to-Peer classes, and a volunteer help line that usually returns calls within 24 hours.",
+      "latitude": "36.9298",
+      "lng": "-121.7745",
+      "_rowNum": 20
+    },
+    {
+      "type": "Mental Health",
+      "category": "(11) Advocacy, peer-run",
+      "agency": "Mental Health Client Action Network (MHCAN)",
+      "website": "mhcan.org",
+      "contact": "(831) 469-0462",
+      "address": "Santa Cruz (confirm address)",
+      "summary": "Peer-run drop-in center for adults with mental health conditions, offering food, clothing, and regular support and recreational groups.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 21
+    },
+    {
+      "type": "Mental Health",
+      "category": "(12) Suicide hotline",
+      "agency": "Suicide Prevention Service of the Central Coast (Family Service Agency of the Central Coast)",
+      "website": "suicidepreventionservice.org",
+      "contact": "24-hr crisis line (877) 663-5433; admin (831) 459-9373 x2; sps24hr@fsa-cc.org",
+      "address": "Phone-based",
+      "summary": "Nationally accredited 24-hour multilingual crisis line for Santa Cruz, Monterey, and San Benito Counties, plus community education and bereavement support for suicide loss survivors. National backup: call or text 988.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 22
+    },
+    {
+      "type": "Mental Health",
+      "category": "(13) Rape hotline",
+      "agency": "Monarch Services 24-hour crisis line",
+      "website": "monarchscc.org",
+      "contact": "(888) 900-4232 (24-hr, bilingual)",
+      "address": "Phone-based",
+      "summary": "Immediate crisis response for survivors of sexual assault and domestic violence, including accompaniment to law enforcement or medical facilities. Monarch was one of California's first funded rape crisis centers.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 23
+    },
+    {
+      "type": "Mental Health",
+      "category": "(14) Psychiatric emergency assessment (PET/CIRT)",
+      "agency": "Santa Cruz County Behavioral Health – Access Team & Mobile Crisis Team (incl. youth team)",
+      "website": "santacruzhealth.org",
+      "contact": "(800) 952-2335 (24 hrs); (831) 454-4170; Watsonville (831) 763-8200",
+      "address": "Walk-in: 1400 Emeline Ave., Bldg. K, Santa Cruz, CA 95060; 1430 Freedom Blvd., Suite F, Watsonville, CA 95076",
+      "summary": "Crisis assessment and intervention for adults and children regardless of insurance. Mobile teams respond in the field to serious mental health crises, with a separate youth/young-adult team; walk-in and mobile hours are weekdays 8–4 (confirm). After hours: Crisis Stabilization Program, 2250 Soquel Ave., (831) 600-2800, 24/7 evaluation for up to 24 hours by self-referral or 5150.",
+      "latitude": "36.9892",
+      "lng": "-122.0195",
+      "_rowNum": 24
+    },
+    {
+      "type": "Mental Health",
+      "category": "(15) Domestic violence shelter",
+      "agency": "Monarch Services – confidential shelter (Mariposa House)",
+      "website": "monarchscc.org",
+      "contact": "(888) 900-4232 (24-hr)",
+      "address": "Confidential location",
+      "summary": "Safe emergency shelter for survivors of domestic violence, accessed through the 24-hour crisis line.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 25
+    },
+    {
+      "type": "Mental Health",
+      "category": "(15) DV, alternate",
+      "agency": "Walnut Avenue Family & Women's Center",
+      "website": "wafwc.org",
+      "contact": "(831) 426-3062; DV resource line (866) 269-2559",
+      "address": "303 Walnut Ave., Santa Cruz, CA 95060",
+      "summary": "Resource center for women and families with DV support services, low-cost childcare, a food bank, a clothing closet, and support groups.",
+      "latitude": "36.9723",
+      "lng": "-122.0318",
+      "_rowNum": 26
+    },
+    {
+      "type": "Mental Health",
+      "category": "(16) LGBTQ resources",
+      "agency": "Diversity Center of Santa Cruz County",
+      "website": "diversitycenter.org",
+      "contact": "(831) 425-5422; info@diversitycenter.org",
+      "address": "1117 Soquel Ave., Santa Cruz, CA 95062",
+      "summary": "Community center supporting LGBTQ+ people with a walk-in center, lending library, and youth, senior, and peer programs. For youth crisis: The Trevor Project, 1-866-488-7386 or text START to 678-678.",
+      "latitude": "36.9782",
+      "lng": "-122.0102",
+      "_rowNum": 27
+    },
+    {
+      "type": "Mental Health",
+      "category": "(17) Child abuse reporting agency & hotline",
+      "agency": "Santa Cruz County Human Services – Family & Children's Services (CPS)",
+      "website": "santacruzhumanservices.org/FamilyChildren",
+      "contact": "24/7 report line (877) 505-3299 or (831) 454-2273; general info (831) 454-4222; FCSSantaCruzCounty@santacruzcountyca.gov",
+      "address": "1400 Emeline Ave., Bldg. K, Santa Cruz, CA 95060",
+      "summary": "Screens and investigates reports of child abuse and neglect, assesses child safety, and connects families to services or Dependency Court. Mandated reporters also submit a written SCAR by fax to (831) 454-4717.",
+      "latitude": "36.9892",
+      "lng": "-122.0195",
+      "_rowNum": 28
+    },
+    {
+      "type": "Mental Health",
+      "category": "(18) Other: peer respite",
+      "agency": "Encompass Second Story",
+      "website": "encompasscs.org/second_story",
+      "contact": "(831) 688-0967",
+      "address": "Santa Cruz",
+      "summary": "Voluntary peer-run respite house for up to six people, staffed by peers with lived experience. An alternative to hospitalization for some clients.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 29
+    },
+    {
+      "type": "Mental Health",
+      "category": "(18) Other: unhoused clients",
+      "agency": "County Homeless Persons' Health Project",
+      "website": "",
+      "contact": "(831) 454-2080; hphpreferral@santacruzcounty.us",
+      "address": "115-A Coral St., Santa Cruz, CA 95060",
+      "summary": "County health clinic for people experiencing homelessness, located alongside other shelter services on Coral Street.",
+      "latitude": "36.9825",
+      "lng": "-122.0255",
+      "_rowNum": 30
+    },
+    {
+      "type": "Mental Health",
+      "category": "(18) Other: general navigation",
+      "agency": "211 Santa Cruz County (United Way)",
+      "website": "",
+      "contact": "Dial 211; 211scc@unitedwaysc.org",
+      "address": "Phone-based",
+      "summary": "24/7 multilingual referral line for nearly any health or human service need not covered above.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 31
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(1) Functional medicine",
+      "agency": "Santa Cruz Naturopathic Medical Center",
+      "website": "",
+      "contact": "Confirm phone (recently relocated downtown)",
+      "address": "",
+      "summary": "Naturopathic family medicine with a focus on gut health, hormones, and herbal medicine. Does not bill insurance.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 32
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(2) Acupuncture / Traditional Chinese Medicine",
+      "agency": "Five Branches University Clinic",
+      "website": "fivebranches.edu",
+      "contact": "(831) 476-8211; receptionist@fivebranches.edu",
+      "address": "200 7th Ave. #115, Santa Cruz, CA 95062. Teaching clinic with supervised interns; usually the most affordable local acupuncture.",
+      "summary": "",
+      "latitude": "36.964784",
+      "lng": "-121.99645",
+      "_rowNum": 33
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(3) Herbalism",
+      "agency": "Five Branches University (Chinese herbal medicine)",
+      "website": "fivebranches.edu",
+      "contact": "(831) 476-8211",
+      "address": "",
+      "summary": "Herbal medicine is one of the five branches practiced at the clinic. A Western herbalist still needs to be identified.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 34
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(4) Massage",
+      "agency": "Tree of Life Healing Arts Center (e.g., Lilah Rose Massage)",
+      "website": "",
+      "contact": "(831) 428-2898",
+      "address": "632 Frederick St., Santa Cruz, CA 95062. Practitioner collective.",
+      "summary": "",
+      "latitude": "36.97682",
+      "lng": "-122.00412",
+      "_rowNum": 35
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(5) Reiki",
+      "agency": "Tree of Life Healing Arts Center",
+      "website": "",
+      "contact": "Call center for current Reiki practitioners",
+      "address": "",
+      "summary": "Confirm which practitioners currently offer Reiki.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 36
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(6) Energy work",
+      "agency": "Pleasure Point Yoga (Reiki-infused sound bath events)",
+      "website": "",
+      "contact": "See website",
+      "address": "",
+      "summary": "Usually offered as events rather than ongoing sessions; confirm schedule.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 37
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(7) Sound healing",
+      "agency": "Pleasure Point Yoga",
+      "website": "",
+      "contact": "See website",
+      "address": "3707 Portola Dr., Santa Cruz. Offers in-studio sound bath journeys.",
+      "summary": "",
+      "latitude": "36.96025",
+      "lng": "-121.97018",
+      "_rowNum": 38
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(8) Curanderismo",
+      "agency": "University of New Mexico Curanderismo Program (national fallback)",
+      "website": "curanderismo.unm.edu",
+      "contact": "Online",
+      "address": "",
+      "summary": "No verified local provider. UNM courses cover traditional Mexican/Latino healing. For local practitioners, ask promotoras at Salud Para La Gente or Watsonville family resource centers.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 39
+    },
+    {
+      "type": "Integrative Health",
+      "category": "(9) Other: float / sauna",
+      "agency": "Equilibrium Float Spa",
+      "website": "",
+      "contact": "(831) 266-5016",
+      "address": "543 Seabright Ave., Santa Cruz, CA 95062. Float tank, sauna, and infrared sauna.",
+      "summary": "",
+      "latitude": "36.9689",
+      "lng": "-122.0084",
+      "_rowNum": 40
+    },
+    {
+      "type": "Community",
+      "category": "(1) Painting classes / art meetups",
+      "agency": "Santa Cruz Art League",
+      "website": "scal.org",
+      "contact": "(831) 426-5787",
+      "address": "526 Broadway, Santa Cruz. Classes, open figure-drawing sessions, and exhibitions.",
+      "summary": "",
+      "latitude": "36.9738",
+      "lng": "-122.0142",
+      "_rowNum": 41
+    },
+    {
+      "type": "Community",
+      "category": "(1) Art meetups, alternate",
+      "agency": "First Friday Santa Cruz",
+      "website": "firstfridaysantacruz.com",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Free monthly evening art walk through local studios and galleries. Low-barrier option for isolated clients.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 42
+    },
+    {
+      "type": "Community",
+      "category": "(2) Pottery studios",
+      "agency": "Santa Cruz Clay",
+      "website": "",
+      "contact": "Via website",
+      "address": "2100 Delaware Ave., Suite E, Santa Cruz. Memberships, classes, and events for all ages and skill levels.",
+      "summary": "",
+      "latitude": "36.9535",
+      "lng": "-122.0468",
+      "_rowNum": 43
+    },
+    {
+      "type": "Community",
+      "category": "(3) Poetry readings / writing groups",
+      "agency": "Poetry Santa Cruz",
+      "website": "poetrysantacruz.org",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Readings, workshops, and open-mic poetry events.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 44
+    },
+    {
+      "type": "Community",
+      "category": "(4) Open mics",
+      "agency": "Poetry Santa Cruz open readings",
+      "website": "",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Check local listings for current music open mics.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 45
+    },
+    {
+      "type": "Community",
+      "category": "(5) Music lessons / jam sessions",
+      "agency": "Kuumbwa Jazz Center",
+      "website": "kuumbwajazz.org",
+      "contact": "(831) 427-2227",
+      "address": "320-2 Cedar St., Santa Cruz. Concerts plus youth jazz education programs.",
+      "summary": "",
+      "latitude": "36.9715",
+      "lng": "-122.0279",
+      "_rowNum": 46
+    },
+    {
+      "type": "Community",
+      "category": "(6) Dance classes / events",
+      "agency": "Palomar Ballroom",
+      "website": "",
+      "contact": "Via website",
+      "address": "1344 Pacific Ave. (mezzanine), Santa Cruz. Full-service ballroom dance studio.",
+      "summary": "",
+      "latitude": "36.9748",
+      "lng": "-122.026",
+      "_rowNum": 47
+    },
+    {
+      "type": "Community",
+      "category": "(7) Performance spaces",
+      "agency": "Tannery Arts Center",
+      "website": "",
+      "contact": "Via website",
+      "address": "1050 River St., Santa Cruz. Artist studios, theater, and community events.",
+      "summary": "",
+      "latitude": "36.9875",
+      "lng": "-122.0298",
+      "_rowNum": 48
+    },
+    {
+      "type": "Community",
+      "category": "(8) Surf lessons / sports teams",
+      "agency": "City of Santa Cruz Parks & Recreation (Friends of Parks & Rec)",
+      "website": "",
+      "contact": "(831) 420-5270",
+      "address": "323 Church St., Santa Cruz. Recreation programs including Junior Lifeguards and the Teen Center; scholarships for low-income families.",
+      "summary": "",
+      "latitude": "36.9739",
+      "lng": "-122.0294",
+      "_rowNum": 49
+    },
+    {
+      "type": "Community",
+      "category": "(8) Rock climbing",
+      "agency": "Pacific Edge Climbing Gym",
+      "website": "",
+      "contact": "(831) 454-9254",
+      "address": "104 Bronson St., Santa Cruz.",
+      "summary": "",
+      "latitude": "36.9678",
+      "lng": "-122.0022",
+      "_rowNum": 50
+    },
+    {
+      "type": "Community",
+      "category": "(9) Hiking clubs",
+      "agency": "Sierra Club Ventana Chapter",
+      "website": "ventana.sierraclub.org",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Free group hikes led by volunteer leaders.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 51
+    },
+    {
+      "type": "Community",
+      "category": "(10) Volunteer opportunities",
+      "agency": "Volunteer Center of Santa Cruz County",
+      "website": "scvolunteercenter.org",
+      "contact": "(831) 427-5070; volunteer@scvolunteercenter.org",
+      "address": "1740 17th Ave., Santa Cruz, CA 95062. Matches volunteers with local organizations.",
+      "summary": "",
+      "latitude": "36.9754",
+      "lng": "-121.9902",
+      "_rowNum": 52
+    },
+    {
+      "type": "Community",
+      "category": "(11) Community gardens (youth)",
+      "agency": "FoodWhat?!",
+      "website": "",
+      "contact": "(831) 459-5476",
+      "address": "1156 High St., Santa Cruz. Youth food justice program where low-income teens grow and cook food.",
+      "summary": "",
+      "latitude": "36.9915",
+      "lng": "-122.0583",
+      "_rowNum": 53
+    },
+    {
+      "type": "Community",
+      "category": "(11) Community gardens (adults)",
+      "agency": "Homeless Garden Project",
+      "website": "homelessgardenproject.org",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Farm-based job training plus community volunteer days.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 54
+    },
+    {
+      "type": "Community",
+      "category": "(12) Recovery groups",
+      "agency": "Alcoholics Anonymous – Santa Cruz",
+      "website": "aasantacruz.org",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Daily meetings countywide, including Spanish-speaking groups. Non-12-step option: SMART Recovery (online).",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 55
+    },
+    {
+      "type": "Community",
+      "category": "(13) Cultural centers",
+      "agency": "Santa Cruz Museum of Art & History (MAH)",
+      "website": "santacruzmah.org",
+      "contact": "(831) 429-1964",
+      "address": "705 Front St., Santa Cruz. Free First Friday admission and community events.",
+      "summary": "",
+      "latitude": "36.9741",
+      "lng": "-122.0263",
+      "_rowNum": 56
+    },
+    {
+      "type": "Community",
+      "category": "(14) Meditation / spiritual spaces",
+      "agency": "Insight Santa Cruz",
+      "website": "insightsantacruz.org",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Donation-based meditation sits and classes.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 57
+    },
+    {
+      "type": "Community",
+      "category": "(15) Other: library programs",
+      "agency": "Santa Cruz Public Libraries",
+      "website": "santacruzpl.org",
+      "contact": "Via website",
+      "address": "",
+      "summary": "Free programs and a searchable Community Information Database of local agencies, useful for keeping this list current.",
+      "latitude": "",
+      "lng": "",
+      "_rowNum": 58
+    }
+  ]
+
   markerLayer.clearLayers();
   allMarkers = [];
   coordMap = {};
-  pinColorIndex = 0;
   setProgress(2);
   setStatus('Fetching sheet…', 'loading');
 
   let rows;
   try {
-    rows = await fetchSheetRows();
-    console.log('Fetched rows:', rows[0]);
+    // rows = await fetchSheetRows();
+    rows = cachedRows;
+    console.log('Fetched:', {rows});
   } catch(e) {
     setStatus(`Error: ${e.message}`, 'error');
     setProgress(100);
@@ -624,52 +1255,36 @@ async function loadData() {
 
   setProgress(60);
   let placed = 0, missing = 0;
+  unplotted = [];
 
-  const fields = Object.keys(rows[0] || {});
-  const simpleFields = ['phone', 'website', 'free'];
-  const simpleFieldsMap = {};
-  simpleFields.forEach(f => {
-    const field = fields.find(k => k.toLowerCase().includes(f));
-    if (field) simpleFieldsMap[f] = field;
-  });
   for (const row of rows) {
-    const lat = parseFloat(row.lat_c);
-    const lng = parseFloat(row.lng_c);
-    const geoType = (row.geo_type_c || '').trim();
-    simpleFields.forEach(f => {
-      if (simpleFieldsMap[f] && row[simpleFieldsMap[f]]) {
-        row[f] = row[simpleFieldsMap[f]];
-      }
-    });
-
-    if (!isNaN(lat) && !isNaN(lng) && geoType !== 'NOT_FOUND') {
-      const type = geoType === 'precise' ? 'precise' : 'fallback';
-      placeMarker(row, { lat, lng, type });
+    const lat = parseFloat(row.latitude);
+    const lng = parseFloat(row.lng);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      placeMarker(row, { lat, lng });
       placed++;
     } else {
       missing++;
+      unplotted.push(row);
     }
   }
 
   setProgress(100);
   // const missingNote = missing > 0 ? ` (${missing} not yet geocoded)` : '';
   setStatus('');
-  const el = document.getElementById('count-loaded');
-  console.log({el})
-  el.textContent = `${placed} of ${rows.length} resources mapped`;
 
   if (allMarkers.length > 0) {
-    const group = L.featureGroup(allMarkers.map(m => m.marker));
-    if (!loadFromHash) map.fitBounds(group.getBounds().pad(0.1));
+    if (!loadFromHash) fitAll();
   }
+  updateSidePanel();
 }
 
       // ── SIDE PANEL ─────────────────────────────────────────────────────────────────
-      let panelMode = 'auto';
+      let panelMode = 'visible';
 
       function setPanelMode(mode) {
         panelMode = mode;
-        ['auto', 'visible', 'hidden'].forEach(m => {
+        ['visible', 'hidden'].forEach(m => {
           document.getElementById('pt-' + m).classList.toggle('active', m === mode);
         });
         updateSidePanel();
@@ -680,25 +1295,38 @@ async function loadData() {
         const list = document.getElementById('side-panel-list');
         const count = document.getElementById('side-panel-count');
 
-        if (panelMode === 'hidden' || (panelMode === 'auto' && map.getZoom() < 7)) {
-          panel.classList.remove('visible');
-          return;
+        // The panel takes its own width from the map, so resize the map when it opens/closes
+        const wantVisible = panelMode !== 'hidden';
+        if (panel.classList.contains('visible') !== wantVisible) {
+          panel.classList.toggle('visible', wantVisible);
+          map.invalidateSize();
         }
 
+        // Show "zoom out to view all" only if some shown pin is off-screen
+        const mapBounds = map.getBounds();
+        document.getElementById('zoom-all').hidden = allMarkers.every(({ marker }) =>
+          !markerLayer.hasLayer(marker) || mapBounds.contains(marker.getLatLng()));
+
+        if (!wantVisible) return;
+
+        renderNoAddress();
+
         const bounds = map.getBounds();
-        const q = document.getElementById('search').value.toLowerCase();
 
         const inView = allMarkers.filter(({ marker, row }) => {
           if (!markerLayer.hasLayer(marker)) return false;
           return bounds.contains(marker.getLatLng());
-        }).sort((a, b) => (a.row.name || '').localeCompare(b.row.name || ''));
+        }).sort((a, b) => (a.row.agency || '').localeCompare(b.row.agency || ''));
 
         count.textContent = `${inView.length} resource${inView.length !== 1 ? 's' : ''}`;
         list.innerHTML = inView.map(({ marker, row }) => {
           const loc = getLoc(row);
           return `<div class="side-panel-item" data-lat="${marker.getLatLng().lat}" data-lng="${marker.getLatLng().lng}">
-      <div class="side-panel-item-name">${row.name || ''}</div>
-      ${loc ? `<div class="side-panel-item-loc">${loc}</div>` : ''}
+      ${pinSVG(TYPE_COLORS[typeKey(row)])}
+      <div class="side-panel-item-text">
+        <div class="side-panel-item-name">${esc(row.agency)}</div>
+        ${loc ? `<div class="side-panel-item-loc">${esc(loc)}</div>` : ''}
+      </div>
     </div>`;
         }).join('');
 
@@ -706,11 +1334,39 @@ async function loadData() {
           el.addEventListener('click', () => inView[i].marker.openPopup());
         });
 
-        panel.classList.add('visible');
       }
 
+      function toggleSection(id) {
+        const sec = document.getElementById(id);
+        const collapsed = sec.classList.toggle('collapsed');
+        sec.querySelector('.caret-button').setAttribute('aria-expanded', String(!collapsed));
+      }
+
+      function renderNoAddress() {
+        const rows = unplotted
+          .filter(row => activeTypes.has(typeKey(row)))
+          .sort((a, b) => (a.agency || '').localeCompare(b.agency || ''));
+        document.getElementById('noaddr-count').textContent = `${rows.length} resource${rows.length !== 1 ? 's' : ''}`;
+        const list = document.getElementById('noaddr-list');
+        list.innerHTML = rows.length ? rows.map(row => `<div class="side-panel-item noaddr">
+      ${pinSVG(TYPE_COLORS[typeKey(row)])}
+      <div class="side-panel-item-text">
+        <div class="side-panel-item-name">${esc(row.agency)}</div>
+        ${row.category ? `<div class="side-panel-item-loc">${esc(row.category)}</div>` : ''}
+        <div class="noaddr-detail">${popupHTML(row)}</div>
+      </div>
+    </div>`).join('') : '<div class="side-panel-empty">None</div>';
+        list.querySelectorAll('.side-panel-item').forEach(el => {
+          el.addEventListener('click', e => { if (!e.target.closest('a')) el.classList.toggle('open'); });
+        });
+      }
+
+      document.getElementById('zoom-all').addEventListener('click', e => {
+        e.preventDefault();
+        fitAll();
+      });
+
       map.on('moveend', updateSidePanel);
-      document.getElementById('search').addEventListener('input', updateSidePanel);
 
 loadData();
 </script>
